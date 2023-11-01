@@ -1,5 +1,10 @@
 TODO
 
-bring in specexport file structure
+read in all TestData info and analyze
+
+add first fit n*mu vs pop to plots
+
+add centroids to #D plots
+
 
 explore relationship beteen env width and underlying fittable n_curves
