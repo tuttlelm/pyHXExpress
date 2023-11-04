@@ -8,3 +8,4 @@ add centroids to #D plots
 
 
 explore relationship beteen env width and underlying fittable n_curves
+can check data quality by comparing env_width to expected isotopic envelope of UN and TestData
