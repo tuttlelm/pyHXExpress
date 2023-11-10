@@ -1,11 +1,19 @@
 TODO
 
-read in all TestData info and analyze
+Bugs:
+
+fix peak picking - need to make sure maxInt is actually a peak and not a shoulder of overlapping peptide
+
+fix data_fits dataframe and saved output, needs to include meta data 
+
+
+Features:
 
 add first fit n*mu vs pop to plots
 
 add centroids to #D plots
 
+calculate average time per run to give estimated time remaining
 
 explore relationship beteen env width and underlying fittable n_curves
 can check data quality by comparing env_width to expected isotopic envelope of UN and TestData
