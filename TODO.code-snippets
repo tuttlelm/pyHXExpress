@@ -17,3 +17,7 @@ calculate average time per run to give estimated time remaining
 
 explore relationship beteen env width and underlying fittable n_curves
 can check data quality by comparing env_width to expected isotopic envelope of UN and TestData
+
+create single pdf output file https://stackoverflow.com/questions/3444645/merge-pdf-files 
+
+multithreading
