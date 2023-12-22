@@ -127,8 +127,11 @@ def get_metadf():
     else: metadf = get_metadf()
     metadf = metadf[(metadf.index == 430)] 
     '''
+    metadf = pd.DataFrame()
     if config.Data_Type == 1:
-        if config.Test_Data: print() ###TODO TODO TODO###    
+        if config.Test_Data: 
+            #print("lol I haven't done this yet") ###TODO TODO TODO###
+            metadf = read_metadf(config.Metadf_File)
         else:
             hx_files = [ f for f in os.listdir(config.Data_DIR) if f[-5:]=='.xlsx'  ] 
             if not config.process_ALL:
@@ -141,7 +144,7 @@ def get_metadf():
 
 
             #HSPB1_B1B5_0001-0011-MTERRVPFSLL-z2-allspectra.xlsx
-            metadf = pd.DataFrame() #dataframe to hold filenames and sample/peptide/charge info
+            #metadf = pd.DataFrame() #dataframe to hold filenames and sample/peptide/charge info
             for f in hx_files:
                 meta = get_hxexpress_meta(f)
                 metadf = metadf.append(meta,ignore_index=True)
@@ -164,7 +167,7 @@ def get_metadf():
             else: mutants = config.User_mutants
 
         smeta = {}
-        metadf = pd.DataFrame()
+        #metadf = pd.DataFrame()
         for mutant in mutants:
             peptide_dirs = [f.path for f in os.scandir(os.path.join(config.Data_DIR,mutant)) if f.is_dir()]
             peptide_ids = [os.path.split(ff)[-1] for ff in peptide_dirs]  
