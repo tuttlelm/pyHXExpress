@@ -54,6 +54,7 @@ if Test_Data:
     Metadf_File = "hdxms_testsets_metadf.csv"
                 
 Output_DIR = os.path.join(Data_DIR,'hdxms_analysis_1pop_'+str(date),'')
+if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
 Hide_Figure_Output = True #Recommended when processing lots of data. 
 SVG = False # also save figures as an svg file, slow, but better for making figures 
 
@@ -67,10 +68,12 @@ Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,y
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
 
 Peak_Resolution = 100.0 #ppm, sensitivity of peak picker to expected m/z centers 
+Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 1.0 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
-Max_Pops = 1 #maximum number of underlying populations to fit
+Min_Pops = 1 # Min_Pops to Max_Pops sets the range of populations to fit, set to same value to force single population
+Max_Pops = 3 #maximum number of underlying populations to fit
 Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
 Ncurve_p_accept = 0.05 #stringency for accepting more fit populations      
 Random_Seed = 16 #used for parameter initialization

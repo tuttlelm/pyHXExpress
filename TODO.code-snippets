@@ -2,10 +2,6 @@ TODO
 
 Bugs:
 
-fix peak picking - need to make sure maxInt is actually a peak and not a shoulder of overlapping peptide
-
-fix data_fits dataframe and saved output, needs to include meta data 
-
 real_nCk when n+k is large -> need better way to handle overflow so that fits can still be optimized 
 
 
@@ -24,6 +20,10 @@ create single pdf output file https://stackoverflow.com/questions/3444645/merge-
 
 multithreading
 
-pretty peptide label for long sequences
-
 warn if Un/TD require > 1 population
+
+
+Notes:
+limit by envelope on 5 residue peptide ... hitting one 3pop, missing some 2pop
+
+
