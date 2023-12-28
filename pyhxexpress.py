@@ -78,7 +78,8 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
     'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Nboot', 'Ncurve_p_accept', 'Overlay_replicates', 'Output_DIR', 'Pop_Thresh',
     'process_ALL', 'setNoise', 'Random_Seed', 'Read_Spectra_List', 'SVG', 'Scale_Y_Values', 'Test_Data', 'User_mutants', 'User_peptides', 'Y_ERR',
     'WRITE_PARAMS']
-    write_file = os.path.join(write_dir,"hdxms_params_"+config.date+".py")
+    filename = "hdxms_params_"+config.date+".py"
+    write_file = os.path.join(write_dir,filename)
     if not overwrite:
         add_string=""
         i = 0
@@ -88,7 +89,8 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
             write_file = os.path.join(write_dir,"hdxms_params_"+config.date+"_"+add_string+".py")
     
     with open(write_file,"w") as p_file:
-        print("Saving config parameters to",os.path.normpath(write_file)+"\n")
+        print_name = os.path.join(os.path.basename(os.path.normpath(write_dir)),filename)
+        print("Saving config parameters to "+print_name+"\n")
         #write header
         p_file.write("import os\n"+
                      "from datetime import datetime\n"+
@@ -228,6 +230,36 @@ def get_metadf():
         metadf = metadf.sort_values(['peptide_range','sample','charge',],ignore_index=True) 
         print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
     return metadf
+
+def filter_metadf(metadf,samples=None,range=None,charge=None,index=None):
+    ''' Filter metadf based on user specified values
+        samples = ['sample1','sample2'] or 'sample1'
+        range = [start,end]
+        charge = [1,2,3] or 1.0 
+        index = [15,58,72] or [*range(0,50)] (Note: can just use filtered = metadf[0:50])
+    '''
+    filtered = metadf.copy()
+    if samples:
+        if isinstance(samples, list): samples = samples
+        else: samples = [samples]
+        filtered = filtered[filtered['sample'].isin(samples)]
+    if range:
+        try: filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
+        except: 
+            print("Filter error: specify range=[start,end]")
+            return
+    if charge:
+        if isinstance(charge, list): charge = charge
+        else: charge = [charge]
+        filtered = filtered[filtered['charge'].isin(charge)]
+    if index:
+        if isinstance(index, list): index = index
+        else: index = [index]
+        filtered = filtered[filtered.index.isin(index)]
+    
+    print("Dataframe filtered to",len(filtered),"from",len(metadf),"total datasets")
+    if len(filtered) == 0: print("Warning: No datasets selected")
+    return filtered
 
 #safety function in case peptide sequence is bad
 def goodseq(seq):
@@ -433,7 +465,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0):
         else:
             intensity = 0.0
             if (pred_mz > mz_mid): zeroes += 1
-        #I don't remember what this next bit was meant to do >< 
+        #I don't remember what this next bit was meant to do but it zeroes out some real peaks >< 
         # if len(pred_mzs) - i < padding + 1:
         #     intensity = 0.0
         #     zeroes += 1
@@ -652,7 +684,8 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
 
 ## Function to perform the fits on the metadf list of spectra
 def run_hdx_fits(metadf):
-    global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata, deutdata_all, rawdata_all, data_fits 
+    global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata
+    global deutdata_all, rawdata_all, data_fits, data_fit  
 
     deutdata_all = pd.DataFrame()
     rawdata_all = pd.DataFrame()
@@ -743,18 +776,13 @@ def run_hdx_fits(metadf):
         
         #figsize is width, height
         fig, ax = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False)
-        if config.Bootstrap: fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False)
+        fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False)
         if config.Test_Data: dfig,dax=plt.subplots(figsize=(nrows/3+9,6)) # numD vs time plot
         else: dfig,dax=plt.subplots(figsize=(9,6))
 
         #time points are rows i, reps are columns j
         data_fits = pd.DataFrame()
         data_fit = pd.DataFrame()
-
-        data_fit['sample'] = sample
-        data_fit['peptide'] = peptide
-        data_fit['peptide_range'] = peptide_range
-        data_fit['charge'] = charge
 
         ## get corrected deut values from centroids (not fit data) of Un and FullDeut
         ## Need these to compare to the 'solution' values
@@ -818,7 +846,7 @@ def run_hdx_fits(metadf):
                 
                 mz=np.array(focal_data.mz.copy())
                 y=np.array(focal_data.Intensity.copy())
-                x=np.full(y.shape,len(y))
+                #x=np.full(y.shape,len(y))
 
                 env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max() # 0 -> assym, 1 -> symm  
                                                             # want 0 to be 2x and 1 to be 1x -> y = -1*x + 2
@@ -835,8 +863,14 @@ def run_hdx_fits(metadf):
                 n_bins = len(y)-1
                 
                 max_y = np.max(y) #for parameter initialization
+                
+                centroid_j = sum(mz*y)/sum(y)
 
-                data_fit =pd.DataFrame({'time':[timept],'rep':[j],'centroid':[sum(mz*y)/sum(y)]})
+                data_fit =pd.DataFrame({'time':[timept],'rep':[j],'centroid':[centroid_j]})
+                data_fit['sample'] = sample
+                data_fit['peptide'] = peptide
+                data_fit['peptide_range'] = peptide_range
+                data_fit['charge'] = charge
                         
                 fstdev=[]     
                 
@@ -898,7 +932,17 @@ def run_hdx_fits(metadf):
                 # To compute one standard deviation errors on the parameters, use perr = np.sqrt(np.diag(pcov)) //when sigma=None
 
                 #print( timelabel +' '+str(samples[j-1]) +' N = ' + str(best_n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(best_fit),file=fout)
+                
+                #add nm vs pop from first round of curve_fit to ax2 plots
+                scaler,nexs,mus,fracs = get_params(*best_fit,sort=True,norm=True,unpack=True)
+                for b in range(best_n_curves):
+                    b_nm = mus[b]*nexs[b]*1/d_corr #apply correction based on TD-UN
+                    b_fracn = fracs[b]
+                    ax2[i,j-1].scatter(b_nm,b_fracn,marker='x',alpha=1.0,c=mpl_colors[b])
+                    if overlay_reps:
+                        ax2[i,ncols-1].scatter(b_nm,b_fracn,marker='x',alpha=1.0,c=mpl_colors[b])
 
+                # do the bootstrap fits 
                 if config.Bootstrap:            
                     p0_boot=[]
                     for boot in range(config.Nboot): #send different p0 for each Bootstrap iteration
@@ -933,7 +977,7 @@ def run_hdx_fits(metadf):
                                 frac_avg = fracn.mean()
                                 frac_err = fracn.std()
                             #ax2[i,j-1].scatter(fracs_array[:,n],mus_array[:,n],label='pop'+str(n))
-                            ax2[i,j-1].scatter(nm,fracs_array[:,n],label='pop'+str(n),alpha=0.6)
+                            ax2[i,j-1].scatter(nm,fracs_array[:,n],label='pop'+str(n),alpha=0.6,c=mpl_colors[n])
                             ax2[i,j-1].errorbar(nm_avg,frac_avg,xerr=nm_err,yerr=frac_err,elinewidth=2,zorder=0,color=mpl_colors_dark[n])
                             if overlay_reps:
                                 ax2[i,ncols-1].scatter(nm,fracs_array[:,n],alpha=0.6,label=str(j)+'_pop'+str(n),)
@@ -967,7 +1011,7 @@ def run_hdx_fits(metadf):
                 else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
                 
                 ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
-                ax[i,j-1].vlines( data_fit.centroid[0], 0, max(y_plot), color='orange' ,label='m/z = '+format(data_fit.centroid[0],'.2f'),linestyles='dashed',linewidth=2)
+                ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2)
 
                 
                 ax[i,j-1].plot( mz, fit_y, '-', label='fit sum N='+str(best_n_curves))
@@ -1008,26 +1052,33 @@ def run_hdx_fits(metadf):
                     ax[i,j-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) #gives rightside space for legend
                 ax[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
                 ax[i,j-1].legend(frameon=False,loc='upper right');
+                ax[i,j-1].set_xlabel("m/z")
+                ax[i,j-1].set_ylabel("Intensity")
                 
                 if overlay_reps: 
                     ax[i,ncols-1].set_title(label='Replicates Overlay')
                     ax[i,ncols-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) 
                     ax[i,ncols-1].legend(frameon=False,loc='upper right',title='data '+ timelabel);
+                    ax[i,ncols-1].set_xlabel("m/z")
+                    ax[i,ncols-1].set_ylabel("Intensity")
                 data_fit['iscaler']=scaler
                 data_fits = data_fits.append(data_fit, ignore_index=True)
                 #data_fits = pd.concat([data_fits,pd.DataFrame([data_fit])],ignore_index = True) #throws error 
-                if config.Bootstrap:
-                    ax2[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
-                    ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
-                    ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
-                    ax2[i,j-1].set_xlabel("N*mu")
-                    ax2[i,j-1].set_ylabel("population") 
-                    if overlay_reps:
-                        ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
-                        ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
-                        ax2[i,ncols-1].set_title(label='Replicates Overlay')
-                        ax2[i,ncols-1].set_xlabel("N*mu")
-                        ax2[i,ncols-1].set_ylabel("population") 
+                
+                centroid_j_corr = (centroid_j - centroidUD) * charge * 1/d_corr
+                ax2[i,j-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
+                ax2[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
+                ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
+                ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                ax2[i,j-1].set_xlabel("Relative Deuterium Level (Da)") #N*mu")
+                ax2[i,j-1].set_ylabel("population") 
+                if overlay_reps:
+                    ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
+                    ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                    ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
+                    ax2[i,ncols-1].set_title(label='Replicates Overlay')
+                    ax2[i,ncols-1].set_xlabel("Relative Deuterium Level (Da)")
+                    ax2[i,ncols-1].set_ylabel("population") 
 
         dax.set_ylabel("Relative Deuterium Level (Da)")
         dax.set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')

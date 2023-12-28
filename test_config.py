@@ -47,7 +47,7 @@ Env_limit = 0.95 #used if Limit_by_envelope = True, rough measure to constrain n
 Min_Pops = 1 # Min_Pops to Max_Pops sets the range of populations to fit, set to same value to force single population
 Max_Pops = 3 # maximum number of underlying populations to fit
 Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
-Ncurve_p_accept = 1.0 #stringency for accepting more fit populations, higher permits more populations, reasonable values are 0.01 to 0.05 
+Ncurve_p_accept = 0.05 #stringency for accepting more fit populations, higher permits more populations, reasonable values are 0.01 to 0.05 
 Random_Seed = 16 #used for parameter initialization
 Boot_Seed = True #if False, same seed as Random_Seed, 
                  #otherwise different seed for each boot iteration (0 to Nboot + Random_Seed + 1 to not repeat initial fit)   

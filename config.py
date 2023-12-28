@@ -38,12 +38,12 @@ if Data_Type == 1:
     User_peptides = ['0001-0011',]#'0078-0094']
 if Data_Type == 2:
     #Data_DIR = '/data/tuttle/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport'
-    Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
+    #Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
+    Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
     Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = True #process_all = True is limited to existing .fasta files, this setting overrides user_ settings
-    User_mutants = ['B1B6','HSPB1'] #['WT','S19D','S45D','S59D','D3']#['All'] #
-    User_peptides =  [ '0078-0094',]#'0049-0054']#['0034-0045'] #['0093-0116'] #['0090-0113']'0122-0166']#
+    User_mutants = [''] #['WT','S19D','S45D','S59D','D3']#['All'] #
+    User_peptides =  ['']#'0049-0054']#['0034-0045'] #['0093-0116'] #['0090-0113']'0122-0166']#
 
 if Test_Data: 
     Data_Type = 1
@@ -53,7 +53,7 @@ if Test_Data:
     Read_Spectra_List = True
     Metadf_File = "hdxms_testsets_metadf.csv"
                 
-Output_DIR = os.path.join(Data_DIR,'hdxms_analysis_1pop_'+str(date),'')
+Output_DIR = os.path.join(Data_DIR,'hdxms_analysis_'+str(date),'')
 if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
 Hide_Figure_Output = True #Recommended when processing lots of data. 
 SVG = False # also save figures as an svg file, slow, but better for making figures 
