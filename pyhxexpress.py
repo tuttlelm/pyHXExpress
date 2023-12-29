@@ -17,7 +17,7 @@ import sys
 import importlib
 from scipy.optimize import curve_fit
 #from scipy.special import comb
-from math import gamma 
+from math import gamma, lgamma, exp
 from pyteomics import mass
 from brainpy import isotopic_variants
 import random
@@ -511,7 +511,9 @@ def get_mz_env(value, df, colname='Intensity',pts=False):
 def nCk_real(n,k):
     #print("n,k:",n,k)
     if n - k + 1 <= 0: return 0.0
-    elif n+k > 50: return 1e20 #this breaks things, would need to handle overflows some other way
+    elif n+k > 50: # https://stats.stackexchange.com/questions/72185/how-can-i-prevent-overflow-for-the-gamma-function
+        log_nCk = lgamma(n+1) - lgamma(k+1) - lgamma(n-k+1)
+        return exp(log_nCk)
     else: return gamma(n+1)/(gamma(k+1)*gamma(n-k+1))
 
 def binom(bins, n, p):
@@ -1011,7 +1013,7 @@ def run_hdx_fits(metadf):
                 else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
                 
                 ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
-                ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2)
+                ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2,zorder=10)
 
                 
                 ax[i,j-1].plot( mz, fit_y, '-', label='fit sum N='+str(best_n_curves))
@@ -1062,8 +1064,8 @@ def run_hdx_fits(metadf):
                     ax[i,ncols-1].set_xlabel("m/z")
                     ax[i,ncols-1].set_ylabel("Intensity")
                 data_fit['iscaler']=scaler
-                data_fits = data_fits.append(data_fit, ignore_index=True)
-                #data_fits = pd.concat([data_fits,pd.DataFrame([data_fit])],ignore_index = True) #throws error 
+                #data_fits = data_fits.append(data_fit, ignore_index=True) #future warning
+                data_fits = pd.concat([data_fits,data_fit],ignore_index = True).reset_index(drop = True) 
                 
                 centroid_j_corr = (centroid_j - centroidUD) * charge * 1/d_corr
                 ax2[i,j-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)

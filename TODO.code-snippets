@@ -3,11 +3,11 @@ TODO
 Bugs:
 
 real_nCk when n+k is large -> need better way to handle overflow so that fits can still be optimized 
-
+        ** use logGamma function for large n+k
 
 Features:
 
-add first fit n*mu vs pop to plots
+change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
 
 add centroids to #D plots
 

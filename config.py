@@ -67,7 +67,7 @@ Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,y
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
 
-Peak_Resolution = 100.0 #ppm, sensitivity of peak picker to expected m/z centers 
+Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
