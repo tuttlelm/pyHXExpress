@@ -231,7 +231,7 @@ def get_metadf():
         print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
     return metadf
 
-def filter_metadf(metadf,samples=None,range=None,charge=None,index=None):
+def filter_metadf(metadf,samples=None,range=None,charge=None,index=None,timept=None,peptides=None,rep=None,quiet=False):
     ''' Filter metadf based on user specified values
         samples = ['sample1','sample2'] or 'sample1'
         range = [start,end]
@@ -242,7 +242,8 @@ def filter_metadf(metadf,samples=None,range=None,charge=None,index=None):
     if samples:
         if isinstance(samples, list): samples = samples
         else: samples = [samples]
-        filtered = filtered[filtered['sample'].isin(samples)]
+        try: filtered = filtered[filtered['sample'].isin(samples)]
+        except: print("no column named sample")
     if range:
         try: filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
         except: 
@@ -251,14 +252,32 @@ def filter_metadf(metadf,samples=None,range=None,charge=None,index=None):
     if charge:
         if isinstance(charge, list): charge = charge
         else: charge = [charge]
-        filtered = filtered[filtered['charge'].isin(charge)]
+        try: filtered = filtered[filtered['charge'].isin(charge)]
+        except: print("no column named charge")
     if index:
         if isinstance(index, list): index = index
         else: index = [index]
         filtered = filtered[filtered.index.isin(index)]
     
-    print("Dataframe filtered to",len(filtered),"from",len(metadf),"total datasets")
-    if len(filtered) == 0: print("Warning: No datasets selected")
+    if timept or timept == 0: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+        if isinstance(timept, list): timept = timept
+        else: timept = [timept]
+        try: filtered = filtered[filtered['time'].isin(timept)]
+        except: print("no column named time")
+    if peptides: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+        if isinstance(peptides, list): peptides = peptides
+        else: peptides = [peptides]
+        try: filtered = filtered[filtered['peptide'].isin(peptides)]
+        except: print("no column named peptide")
+    if rep or rep == 0: 
+        if isinstance(rep, list): rep = rep
+        else: rep = [rep]
+        try: filtered = filtered[filtered['rep'].isin(rep)]
+        except: print("no column named rep")
+      
+    if quiet == False: 
+        print("Dataframe filtered to",len(filtered),"from",len(metadf),"total datasets")
+        if len(filtered) == 0: print("Warning: No datasets selected")
     return filtered
 
 #safety function in case peptide sequence is bad
@@ -272,6 +291,11 @@ def goodseq(seq):
         return False
 
 def read_hexpress_data(f,dfrow,keep_raw = False):
+    def pops(row):
+        pop = 0
+        for col in ['p1','p2','p3']:
+            if row[col] > 0: pop += 1
+        return pop
     
     raw=[]
     all_raw = pd.DataFrame()
@@ -342,6 +366,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False):
         file=os.path.join(config.Data_DIR, "bimodal_solutions2.txt")
         solution = pd.read_csv(file,delim_whitespace=True,)
         solution = solution.sort_values('time').reset_index()
+        solution['npops'] = solution.apply(pops,axis=1)
         all_raw['time_idx'] = [ time_points.index(t) for t in all_raw.time ]
         return deutdata, all_raw, solution
     elif keep_raw: 
@@ -687,10 +712,11 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
 ## Function to perform the fits on the metadf list of spectra
 def run_hdx_fits(metadf):
     global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata
-    global deutdata_all, rawdata_all, data_fits, data_fit  
+    global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df
 
     deutdata_all = pd.DataFrame()
     rawdata_all = pd.DataFrame()
+    data_fits = pd.DataFrame()
 
     now = datetime.now()
     date = now.strftime("%d%b%Y")
@@ -704,6 +730,16 @@ def run_hdx_fits(metadf):
 
     fout = open(os.path.join(config.Output_DIR,'output_v3allfracs_'+date+'.txt'),'w')
 
+    Preset_Pops = False
+    if config.Preset_Pops:
+        try: 
+            config_df = pd.read_csv(config.Preset_Pops_File).drop('Index',axis=1)
+            print("Using user specified number of populations when available")
+            Preset_Pops = True
+        except: 
+            print("Preset_Pops_File does not exist, using default range")
+            Preset_Pops = False
+
     n_fitfunc = n_binom_isotope # n_binomials #
     fitfunc = binom_isotope # binom #
     fitfunc_name=str(fitfunc).split()[1]  #fit function as string to add to filenames
@@ -715,7 +751,7 @@ def run_hdx_fits(metadf):
         dataset_count += 1
         overlay_reps = config.Overlay_replicates
         rawdata = pd.DataFrame(None) 
-        deutdata = pd.DataFrame(None) 
+        deutdata = pd.DataFrame(None)         
 
         hdx_file = row['file']
         sample = row['sample']
@@ -783,15 +819,16 @@ def run_hdx_fits(metadf):
         else: dfig,dax=plt.subplots(figsize=(9,6))
 
         #time points are rows i, reps are columns j
-        data_fits = pd.DataFrame()
         data_fit = pd.DataFrame()
 
+        ## correction would be better based on n_curves = 1 fits of UN/TD
         ## get corrected deut values from centroids (not fit data) of Un and FullDeut
         ## Need these to compare to the 'solution' values
         n_amides = count_amides(peptide,count_sc=0.0)
         max_n_amides = count_amides(peptide,count_sc=0.5)
         Noise = 0.0
-        d_corr = 1.0
+        d_corr = 1.0        
+
         if all(tp in time_points for tp in [0,1e6]):
             time_reps = deutdata.rep[(deutdata.time==0.0)].unique().astype('int')
             n_time_reps = len(time_reps)
@@ -823,6 +860,8 @@ def run_hdx_fits(metadf):
             print("Missing Un or Full Datasets\nUsing percentage of maxInt for Noise or setNoise if specified")
             dax_log = False
             Noise = config.Y_ERR/100.0 * deutdata.Intensity.max()
+            #use pred undeut mz if no UN/TD data
+            centroidUD = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge) 
 
         if config.setNoise: Noise = config.setNoise  
 
@@ -836,7 +875,8 @@ def run_hdx_fits(metadf):
             if config.Test_Data: timelabel = 'Exp '+str(i)
 
             ## TODO would like to test n_curves for all reps in time point, then do bootstrap with best_n_curves
-            for j in range(1,n_time_rep+1):  
+            for j in range(1,n_time_rep+1):
+                print("Time point:",timelabel,"Rep:",j,end='\r',flush=True)  
                 lowermz = deutdata.mz[deutdata.rep==j].min()
                 uppermz = deutdata.mz[deutdata.rep==j].max()
             
@@ -873,6 +913,7 @@ def run_hdx_fits(metadf):
                 data_fit['peptide'] = peptide
                 data_fit['peptide_range'] = peptide_range
                 data_fit['charge'] = charge
+                
                         
                 fstdev=[]     
                 
@@ -881,6 +922,16 @@ def run_hdx_fits(metadf):
                 if config.Limit_by_envelope: high_n = min(max(1,int(env_symmetry_adj * charge * (env[1]-env[0])/(3*config.Env_limit)-2/3)),config.Max_Pops)
                 else: high_n = config.Max_Pops
                 high_n = max(low_n,high_n) #safety in case low_n > high_n
+                if Preset_Pops:
+                    try:
+                        fixed_pop = filter_metadf(config_df,samples=sample,peptides=peptide,charge=charge,rep=j,timept=timept,quiet=True)#['fit_npops'][0]
+                        high_n  = int(fixed_pop['fit_npops'].values[0])
+                        low_n = high_n
+                        #print("Number of fit populations is fixed to",high_n)
+                    except: 
+                        #print("Failed to set the fixed population. Using,",low_n,"to",high_n,"populations")
+                        pass
+
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
                     initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed)
                     if (len(initial_estimate) > n_bins): 
@@ -968,7 +1019,8 @@ def run_hdx_fits(metadf):
                         for n in range(best_n_curves):
                             nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN
                             fracn = fracs_array[:,n]
-                            if best_n_curves > 1:
+                            len_nm = len(nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)])
+                            if (best_n_curves > 1) & (len_nm > 0):
                                 nm_avg = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
                                 nm_err = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].std()
                                 frac_avg = fracn[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
@@ -998,6 +1050,7 @@ def run_hdx_fits(metadf):
                                 s_f = solution['p'+str(k+1)][solution.time==timept].to_numpy()[0]
                                 ax2[i,j-1].scatter(s_nm,s_f,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=60,linewidth=1.5)
                                 dax.scatter(i,s_nm,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=100.0*s_f+20.0,)
+                            data_fit['solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0]
 
 
                 ### PLOTS ###
@@ -1006,6 +1059,8 @@ def run_hdx_fits(metadf):
                 scaled_env_height = max(y_plot)*config.Env_threshold
                 env_resolution = env_symmetry_adj *charge * (env[1]-env[0]) / ( len(best_fit) + 1.0 ) #rough measure of whether there's enough information to do the n_curves fit
                 
+                data_fit['env_res_1'] = env_symmetry_adj *charge * (env[1]-env[0]) / ( 2.0 ) #env_res for n_curves = 1 case 
+
                 env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
                 ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
                 if config.Keep_Raw:
@@ -1132,8 +1187,16 @@ def run_hdx_fits(metadf):
             else: plt.show()
         except IOError as e:
             print (f"Could not save: {dfigfile} file is open") 
+        #data_fits_all = pd.concat([data_fits_all,data_fits])
         deutdata_all = pd.concat([deutdata_all,deutdata])
         rawdata_all = pd.concat([rawdata_all, rawdata])
+    
+    try: 
+        data_output_file = os.path.join(config.Output_DIR,"data_fits"+date+".csv")
+        print("Saving results table to",data_output_file)
+        data_fits.to_csv(data_output_file,index_label='Index')
+    except:
+        print("Could not save results file")
 
     fout.close()
     return

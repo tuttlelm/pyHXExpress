@@ -2,10 +2,19 @@ TODO
 
 Bugs:
 
-real_nCk when n+k is large -> need better way to handle overflow so that fits can still be optimized 
-        ** use logGamma function for large n+k
+need to check normalization of centroid, solution, and bootpops avg 
+issue may be that normalization is based on centroid and not single binomial fit of UN/TD
+this means if there are noise/overlapped peaks picked the Centroid value may be quite wrong
+see e.g. pep123_LO 
+
+calculate back exchange % = 1 - (TD - UN)/(namides * Dfrac)
+        Dfrac = %D2O of exchange D2O buffer (0.85-0.90 is common)
+
 
 Features:
+
+print data_fit to file to have saved output incase of early termination 
+(currently only writing data_fits which only happens on run completion)
 
 change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
 
@@ -26,4 +35,5 @@ warn if Un/TD require > 1 population
 Notes:
 limit by envelope on 5 residue peptide ... hitting one 3pop, missing some 2pop
 
-
+should collect envelope, number of amides, real number of pops for test data and see if a better env vs pops relationship can be crafted
+explore env_width relative to UN and/or TD env_width and relationship to n_curves

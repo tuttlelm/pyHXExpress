@@ -55,6 +55,11 @@ if Test_Data:
                 
 Output_DIR = os.path.join(Data_DIR,'hdxms_analysis_'+str(date),'')
 if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
+
+Preset_Pops = False #Use predetermined number of populations to fit curves, overrides Min/Max_Pops if given
+Preset_Pops_File = os.path.join(Output_DIR,"all_data_results.csv")
+
+
 Hide_Figure_Output = True #Recommended when processing lots of data. 
 SVG = False # also save figures as an svg file, slow, but better for making figures 
 

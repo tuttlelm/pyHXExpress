@@ -24,6 +24,8 @@ Read_Spectra_List = True
 Metadf_File = "hdxms_testsets_metadf.csv"              
 Output_DIR = os.path.join(Data_DIR,'output_'+str(date),'')
 if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
+Preset_Pops = True #Use predetermined number of populations to fit curves, overrides Min/Max_Pops if given
+Preset_Pops_File = os.path.join(Data_DIR,"test_config_df.csv")
 User_mutants = ['']
 User_peptides = ['']
 
@@ -40,7 +42,7 @@ Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,y
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
 
 Zero_Filling = 6 # large value to try to fit 3 binomials on short peptides, not generally recommended.
-Peak_Resolution = 100.0 #ppm, sensitivity of peak picker to expected m/z centers 
+Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 0.95 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
