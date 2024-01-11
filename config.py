@@ -54,7 +54,7 @@ if Test_Data:
     Metadf_File = "hdxms_testsets_metadf.csv"
                 
 Output_DIR = os.path.join(Data_DIR,'hdxms_analysis_'+str(date),'')
-if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
+#if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
 
 Preset_Pops = False #Use predetermined number of populations to fit curves, overrides Min/Max_Pops if given
 Preset_Pops_File = os.path.join(Output_DIR,"all_data_results.csv")
@@ -71,7 +71,8 @@ setNoise = 200 #if noise value is known, specify instead of estimating as Y_ERR 
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
-
+Binomial_dCorr = True #use the n=1 binomial fit to determine UN/TD centers for d_corr calculation
+                    # this is essential if dirty spectra; otherwise using sum(mz*y)/sum(y) which will be wrong if there are contaminating peaks
 Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max

@@ -2,34 +2,39 @@ TODO
 
 Bugs:
 
-need to check normalization of centroid, solution, and bootpops avg 
-issue may be that normalization is based on centroid and not single binomial fit of UN/TD
-this means if there are noise/overlapped peaks picked the Centroid value may be quite wrong
-see e.g. pep123_LO 
+>>need to check nex*mus for #D ... was not correct for n=1 fit of TD since nex > namide
+applies to bnm and nm values 
+centroid correction is okay: (centj - centun)*/charge * 1/dcorr = (m-m0)/(m100-m0)
 
-calculate back exchange % = 1 - (TD - UN)/(namides * Dfrac)
+
+>>calculate back exchange % = 1 - (TD - UN)/(namides * Dfrac)
         Dfrac = %D2O of exchange D2O buffer (0.85-0.90 is common)
+
+>>filenames innacurate when using set.noise
 
 
 Features:
 
-print data_fit to file to have saved output incase of early termination 
-(currently only writing data_fits which only happens on run completion)
+>>change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
+Need to save data in a way that you can recreate plots without rerunning 
 
-change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
+>>calculate average time per run to give estimated time remaining
 
-add centroids to #D plots
-
-calculate average time per run to give estimated time remaining
-
-explore relationship beteen env width and underlying fittable n_curves
+>>explore relationship beteen env width and underlying fittable n_curves
 can check data quality by comparing env_width to expected isotopic envelope of UN and TestData
 
-create single pdf output file https://stackoverflow.com/questions/3444645/merge-pdf-files 
+>>create single pdf output file https://stackoverflow.com/questions/3444645/merge-pdf-files 
 
-multithreading
+>>multithreading
 
-warn if Un/TD require > 1 population
+>>warn if Un/TD require > 1 population
+could have comment column with preset flags
+1) warn if Un/TD require > 1 population
+2-3) env_res suggests more/fewer populations are possible 
+4) #D > TD
+
+
+>> output to format recognized by HDBoxeR and pyHDX for downstream analyses
 
 
 Notes:
@@ -37,3 +42,5 @@ limit by envelope on 5 residue peptide ... hitting one 3pop, missing some 2pop
 
 should collect envelope, number of amides, real number of pops for test data and see if a better env vs pops relationship can be crafted
 explore env_width relative to UN and/or TD env_width and relationship to n_curves
+
+gather nboot, noise vs average values to numerically support approach

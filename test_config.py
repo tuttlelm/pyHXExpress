@@ -11,7 +11,7 @@ date = now.strftime("%d%b%Y")
 '''Settings for Test Data Sets'''
 ##########################################
 
-USE_PARAMS_FILE = False  #### IF THIS IS TRUE ALL PARAMETERS ARE READ FROM PARAMS_FILE:
+USE_PARAMS_FILE = False  #### IF THIS IS TRUE ALL PARAMETERS ARE READ FROM PARAMS_FILE: ### obsolete with import config 
 WRITE_PARAMS = True #save the params to hdxms_params_$.py file in Data_DIR, can then be read in as PARAMS_FILE 
 Allow_Overwrite = True #don't create a new filename if file already exists
 
@@ -23,8 +23,8 @@ Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx
 Read_Spectra_List = True
 Metadf_File = "hdxms_testsets_metadf.csv"              
 Output_DIR = os.path.join(Data_DIR,'output_'+str(date),'')
-if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
-Preset_Pops = True #Use predetermined number of populations to fit curves, overrides Min/Max_Pops if given
+#if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
+Preset_Pops = False #Use predetermined number of populations to fit curves, overrides Min/Max_Pops if given
 Preset_Pops_File = os.path.join(Data_DIR,"test_config_df.csv")
 User_mutants = ['']
 User_peptides = ['']
@@ -36,13 +36,14 @@ Bootstrap = True #False #
 Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
 
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
-setNoise = 500 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
+setNoise = 100 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
 
 Zero_Filling = 6 # large value to try to fit 3 binomials on short peptides, not generally recommended.
-Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
+Peak_Resolution = 75.0 #ppm, sensitivity of peak picker to expected m/z centers 
+Binomial_dCorr = True # fit n=1 binomial for UN/TD to calculate d_corr and back exchange values
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 0.95 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
