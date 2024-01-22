@@ -2,6 +2,8 @@ TODO
 
 Bugs:
 
+data_fits_asrun isn't right
+
 >>need to check nex*mus for #D ... was not correct for n=1 fit of TD since nex > namide
 applies to bnm and nm values 
 centroid correction is okay: (centj - centun)*/charge * 1/dcorr = (m-m0)/(m100-m0)
@@ -44,3 +46,5 @@ should collect envelope, number of amides, real number of pops for test data and
 explore env_width relative to UN and/or TD env_width and relationship to n_curves
 
 gather nboot, noise vs average values to numerically support approach
+
+could simulate mono,bi,trimodal data for some set of peptide/charges and train on that using env width, max_namides, ~symmetry 

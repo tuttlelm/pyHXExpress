@@ -20,6 +20,7 @@ from scipy.stats import rankdata
 #from scipy.special import comb
 from math import gamma, lgamma, exp
 from pyteomics import mass
+#!pip install brain-isotopic-distribution
 from brainpy import isotopic_variants
 import random
 from datetime import datetime
@@ -422,7 +423,13 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw):
     else: return deutdata
 
 
-def get_na_isotope(peptide,charge):
+def get_na_isotope(peptide,charge,npeaks=10):
+    '''
+    Get the Natural Abundance isotopic pattern for a given peptide,charge
+    If npeaks=None the isotopic_variants routine will vary npeaks depending on composition
+    e.g. 'YGGFL' will have 7 peaks but 'RDKVQKEYALFYKLD' has 15. 
+    The default value is fixed to 10 peaks for all peptides
+    '''
     pepcomp = {}
     na_isotope=[]
     if goodseq(peptide): comp = mass.Composition(peptide) 
@@ -431,7 +438,7 @@ def get_na_isotope(peptide,charge):
         pepcomp[key] = comp[key]
     pepcomp['H'] = pepcomp['H']-count_amides(peptide,count_sc=0.0)
     #pepcomp = {'H': 53, 'C': 34, 'O': 15, 'N': 7}
-    theoretical_isotopic_cluster = isotopic_variants(pepcomp, npeaks=10, charge=charge)
+    theoretical_isotopic_cluster = isotopic_variants(pepcomp, npeaks=npeaks, charge=charge)
 
     for ipeak in theoretical_isotopic_cluster:
         na_isotope = np.append(na_isotope, ipeak.intensity) #for now just make continuous list for all peptides
@@ -725,22 +732,32 @@ def run_hdx_fits(metadf):
     global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df
     global boot_centers #troubleshooting 
 
-    deutdata_all = pd.DataFrame()
-    rawdata_all = pd.DataFrame()
-    data_fits = pd.DataFrame()
-
     now = datetime.now()
     date = now.strftime("%d%b%Y")
     
     os.makedirs(os.path.dirname(config.Output_DIR),exist_ok=True)
+    fout = open(os.path.join(config.Output_DIR,'output_v3allfracs_'+date+'.txt'),'w')
+    data_output_file_inprogress = os.path.join(config.Output_DIR,"data_fits_asrun_"+date+".csv")
 
+    deutdata_all = pd.DataFrame()
+    rawdata_all = pd.DataFrame()
+    data_fits = pd.DataFrame()
+
+    data_fit_columns = ['time', 'rep', 'centroid', 'sample', 'peptide', 'peptide_range',
+                            'charge', 'env_width', 'env_symm', 'max_namides', 'icentroid_1', 'iD_corr1',
+                            'ipop_1', 'ipop_std_1', 'imu_1', 'iNex_1', 'iNex_std_1', 'iscaler',
+                            'icentroid_2', 'iD_corr2', 'ipop_2', 'ipop_std_2', 'imu_2', 'iNex_2',
+                            'iNex_std_2', 'icentroid_3', 'iD_corr3', 'ipop_3', 'ipop_std_3',
+                            'imu_3', 'iNex_3', 'iNex_std_3']
+    if config.Test_Data: data_fit_columns += ['solution_npops']
+    data_fit = pd.DataFrame(columns = data_fit_columns)
+    data_fit.to_csv(data_output_file_inprogress,index=True,index_label='Index',header=True) #create new file 
+    
     if config.USE_PARAMS_FILE:
         get_parameters()
     if config.WRITE_PARAMS:
         write_parameters(config.Output_DIR, config.Allow_Overwrite)
 
-    fout = open(os.path.join(config.Output_DIR,'output_v3allfracs_'+date+'.txt'),'w')
-    data_output_file_inprogress = os.path.join(config.Output_DIR,"data_fits_asrun_"+date+".csv")
 
     Preset_Pops = False
     if config.Preset_Pops:
@@ -831,16 +848,7 @@ def run_hdx_fits(metadf):
         else: dfig,dax=plt.subplots(figsize=(9,6))
 
         #time points are rows i, reps are columns j
-        data_fit_columns = ['time', 'rep', 'centroid', 'sample', 'peptide', 'peptide_range',
-                            'charge', 'env_res_1', 'icentroid_1', 'iD_corr1',
-                            'ipop_1', 'ipop_std_1', 'imu_1', 'iNex_1', 'iNex_std_1', 'iscaler',
-                            'icentroid_2', 'iD_corr2', 'ipop_2', 'ipop_std_2', 'imu_2', 'iNex_2',
-                            'iNex_std_2', 'icentroid_3', 'iD_corr3', 'ipop_3', 'ipop_std_3',
-                            'imu_3', 'iNex_3', 'iNex_std_3']
-        if config.Test_Data: data_fit_columns += ['solution_npops']
-        data_fit = pd.DataFrame(columns = data_fit_columns)
-        data_fit.to_csv(data_output_file_inprogress,index=True,index_label='Index',header=True) #create new file 
-
+        
         ## correction would be better based on n_curves = 1 fits of UN/TD
         ## get corrected deut values from centroids (not fit data) of Un and FullDeut
         ## Need these to compare to the 'solution' values
@@ -1112,7 +1120,10 @@ def run_hdx_fits(metadf):
                 scaled_env_height = max(y_plot)*config.Env_threshold
                 env_resolution = env_symmetry_adj *charge * (env[1]-env[0]) / ( len(best_fit) + 1.0 ) #rough measure of whether there's enough information to do the n_curves fit
                 
-                data_fit.loc[0,'env_res_1'] = env_symmetry_adj *charge * (env[1]-env[0]) / ( 2.0 ) #env_res for n_curves = 1 case 
+                #data_fit.loc[0,'env_res_1'] = env_symmetry_adj *charge * (env[1]-env[0]) / ( 2.0 ) #env_res for n_curves = 1 case 
+                data_fit.loc[0,'env_width'] = charge*(env[1]-env[0])
+                data_fit.loc[0,'env_symm'] = env_symmetry_adj
+                data_fit.loc[0,'max_namides']=n_amides
 
                 env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
                 ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
@@ -1176,7 +1187,7 @@ def run_hdx_fits(metadf):
                     ax[i,ncols-1].set_xlabel("m/z")
                     ax[i,ncols-1].set_ylabel("Intensity")
                 data_fit.loc[0,'iscaler']=scaler
-                #data_fits = data_fits.append(data_fit, ignore_index=True) #future warning
+                                
                 data_fits = pd.concat([data_fits,data_fit],ignore_index = True).reset_index(drop = True)
                 try:
                     data_fit.to_csv(data_output_file_inprogress,mode='a',index_label='Index',header=False) 
