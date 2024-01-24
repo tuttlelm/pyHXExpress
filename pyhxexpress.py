@@ -16,7 +16,7 @@ import os
 import sys
 import importlib
 from scipy.optimize import curve_fit
-from scipy.stats import rankdata
+from scipy.stats import rankdata, skew
 #from scipy.special import comb
 from math import gamma, lgamma, exp
 from pyteomics import mass
@@ -1123,6 +1123,7 @@ def run_hdx_fits(metadf):
                 #data_fit.loc[0,'env_res_1'] = env_symmetry_adj *charge * (env[1]-env[0]) / ( 2.0 ) #env_res for n_curves = 1 case 
                 data_fit.loc[0,'env_width'] = charge*(env[1]-env[0])
                 data_fit.loc[0,'env_symm'] = env_symmetry_adj
+                data_fit.loc[0,'skewness'] = skew(y_norm,bias=False)
                 data_fit.loc[0,'max_namides']=n_amides
 
                 env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
