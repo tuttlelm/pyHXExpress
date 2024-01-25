@@ -874,6 +874,7 @@ def run_hdx_fits(metadf):
                         fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
+                        scaler = np.power( 10.0, scaler )
                         fit_y = scaler * fitfunc( len(y)-1, nexs[0], mus[0], ) * np.sum(y)
                         cent_r =  [sum(mz*fit_y)/sum(fit_y)] 
                     except RuntimeError:
@@ -899,6 +900,7 @@ def run_hdx_fits(metadf):
                         fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
+                        scaler = np.power( 10.0, scaler )
                         fit_y = scaler * fitfunc( len(y)-1, nexs[0], mus[0], ) * np.sum(y)
                         cent_r = [sum(mz*fit_y)/sum(fit_y)]                      
                     except RuntimeError:

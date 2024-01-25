@@ -2,7 +2,10 @@ TODO
 
 Bugs:
 
-data_fits_asrun isn't right
+Binomial_dCorr: need to check that not only are UN/TD present but that they have data
+(maria's data, b1_hetero/HSPB1 0049-0077 z3)
+
+data_fits_asrun .. not a real index
 
 >>need to check nex*mus for #D ... was not correct for n=1 fit of TD since nex > namide
 applies to bnm and nm values 
@@ -17,13 +20,16 @@ centroid correction is okay: (centj - centun)*/charge * 1/dcorr = (m-m0)/(m100-m
 
 Features:
 
+>Add N=1 data to NDeut plots and hline for theoretical TD
+>keep N=1 *fit and *bestfit in data_fits for later use
+>need a plotter function to plot desired data and fits at will
+>Write function to scan through all_raw_data and use model weights to predict npops 1 or 2+
+  tie in to fixed_pops option to use this during fits
+
 >>change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
 Need to save data in a way that you can recreate plots without rerunning 
 
 >>calculate average time per run to give estimated time remaining
-
->>explore relationship beteen env width and underlying fittable n_curves
-can check data quality by comparing env_width to expected isotopic envelope of UN and TestData
 
 >>create single pdf output file https://stackoverflow.com/questions/3444645/merge-pdf-files 
 
