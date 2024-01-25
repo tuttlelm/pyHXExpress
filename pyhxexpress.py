@@ -676,7 +676,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
                             print(f"attempting to fit more parameters than data points in bootstrap")
                             #should be able to exit at this point, haven't updated last fit parameters including p_err
                             break # exit the for n_curves loop
-        try: 
+        try:             
             randomfit, randomcov = curve_fit( n_fitfunc, datax, randomdataY, p0, maxfev=int(1e6), 
                                     bounds = bounds   )
         except RuntimeError:
@@ -874,8 +874,9 @@ def run_hdx_fits(metadf):
                         fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
-                        scaler = np.power( 10.0, scaler )
+                        scaler = np.power( 10.0, scaler )  
                         fit_y = scaler * fitfunc( len(y)-1, nexs[0], mus[0], ) * np.sum(y)
+                        #print("UN len(fit_y), sum(fit_y)",len(fit_y),sum(fit_y)) #TROUBLESHOOTING
                         cent_r =  [sum(mz*fit_y)/sum(fit_y)] 
                     except RuntimeError:
                         print (f"failed to fit: UnDeut data for d_corr calculation")
@@ -900,8 +901,9 @@ def run_hdx_fits(metadf):
                         fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
-                        scaler = np.power( 10.0, scaler )
+                        scaler = np.power( 10.0, scaler )  
                         fit_y = scaler * fitfunc( len(y)-1, nexs[0], mus[0], ) * np.sum(y)
+                        #print("TD len(fit_y), sum(fit_y)",len(fit_y),sum(fit_y)) #TROUBLESHOOTING
                         cent_r = [sum(mz*fit_y)/sum(fit_y)]                      
                     except RuntimeError:
                         print (f"failed to fit: TD data for d_corr calculation")
@@ -996,7 +998,7 @@ def run_hdx_fits(metadf):
                         pass
 
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
-                    print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,end='\r',flush=True) 
+                    print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,"          ",end='\r',flush=True) 
                     initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed)
                     if (len(initial_estimate) > n_bins): 
                         print(f"attempting to fit more parameters than data points: time {timelabel} rep {j} N={n_curves} curves")
@@ -1230,12 +1232,12 @@ def run_hdx_fits(metadf):
         if config.Full_boot: fig2.tight_layout()
         
 
-        if config.Bootstrap: 
-            if config.Y_ERR: yerr_name = 'bootNoise0p'+format(config.Y_ERR/100.,'.2f')[-2:]+'_'
-            else: yerr_name = 'NoNoise_'
-        else: yerr_name = ''
+        # if config.Bootstrap: 
+        #     if config.Y_ERR: yerr_name = 'bootNoise0p'+format(config.Y_ERR/100.,'.2f')[-2:]+'_'
+        #     else: yerr_name = 'NoNoise_'
+        # else: yerr_name = ''
         try:
-            figfile = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_IndFits_'+yerr_name+date
+            figfile = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_IndFits_'+date
             print("saving figure as ",figfile)
             fig.savefig(os.path.join(config.Output_DIR,figfile+'.pdf'),format='pdf',dpi=600)
             if config.SVG: fig.savefig(os.path.join(config.Output_DIR,figfile+'.svg'),format='svg')
@@ -1245,7 +1247,8 @@ def run_hdx_fits(metadf):
             print (f"Could not save: {figfile} file is open")   
 
         try:
-            fig2file = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_BootFits_'+yerr_name+date
+            #fig2file = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_BootFits_'+yerr_name+date
+            fig2file = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_BootFits_'+date #details will be in separate file
             print("saving figure as ",fig2file)
             fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.pdf'),format='pdf',dpi=600)
             if config.SVG: fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.svg'),format='svg')
@@ -1255,7 +1258,7 @@ def run_hdx_fits(metadf):
             print (f"Could not save: {fig2file} file is open") 
 
         try:
-            dfigfile = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_ndeutBoot_'+yerr_name+date
+            dfigfile = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_ndeutBoot_'+date
             print("saving figure as ",dfigfile)
             dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.pdf'),format='pdf',dpi=600)
             if config.SVG: dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.svg'),format='svg')
