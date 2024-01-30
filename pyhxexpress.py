@@ -371,6 +371,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False):
         peaks['charge']=charge
         peaks['rep']=rep
         peaks['peptide_range']=peptide_range
+        peaks['file']=dfrow['file']
         if keep_raw:
             raw['time']=delay
             raw['sample']=sample
@@ -378,6 +379,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False):
             raw['charge']=charge
             raw['rep']=rep
             raw['peptide_range']=peptide_range
+            raw['file']=dfrow['file']
             all_raw = pd.concat([all_raw,raw])
         dfs = pd.concat([dfs,peaks],ignore_index=True)
 
@@ -422,6 +424,8 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw):
         peaks['sample']=row['sample']
         peaks['charge']=row['charge']
         peaks['peptide']=row['peptide']
+        peaks['peptide_range']=row['peptide_range']
+        peaks['file']=row['file']
         if peaks.Intensity.sum() > 0:
             dfs.append( peaks )         
         else: print (" File "+f+" contains no Intensity data at expected m/z values") #peaks['sample']+' '+peaks['peptide']+
@@ -432,6 +436,7 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw):
             raw['charge']=row['charge']
             raw['rep']=rep
             raw['peptide_range']=row['peptide_range']
+            raw['file']=row['file']
             rawdata = pd.concat([rawdata,raw])
     if len(dfs) > 0: 
         deutdata = pd.concat(dfs, ignore_index=True,)
