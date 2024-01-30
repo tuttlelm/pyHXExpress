@@ -2,6 +2,9 @@ TODO
 
 Bugs:
 
+getting some overflow errors for np.pow() for very long peptides
+        >> can try changing to np.float128
+
 Binomial_dCorr: need to check that not only are UN/TD present but that they have data
 (maria's data, b1_hetero/HSPB1 0049-0077 z3)
 
@@ -23,6 +26,8 @@ Features:
 >Add N=1 data to NDeut plots and hline for theoretical TD
 >keep N=1 *fit and *bestfit in data_fits for later use
 >need a plotter function to plot desired data and fits at will
+>run_hdx_fits needs option to use already loaded deutdata/rawdata 
+  that way could modify & rerun, especially for crappy spectra 
 >Write function to scan through all_raw_data and use model weights to predict npops 1 or 2+
   tie in to fixed_pops option to use this during fits
 

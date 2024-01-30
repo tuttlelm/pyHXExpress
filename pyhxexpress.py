@@ -15,6 +15,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import os
 import sys
 import importlib
+import tensorflow as tf
+from keras.models import load_model
 from scipy.optimize import curve_fit
 from scipy.stats import rankdata, skew
 #from scipy.special import comb
@@ -234,45 +236,67 @@ def get_metadf():
         print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
     return metadf
 
-def filter_metadf(metadf,samples=None,range=None,charge=None,index=None,timept=None,peptides=None,rep=None,quiet=False):
+def filter_metadf(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
+                  charge=None,index=None,timept=None,peptides=None,rep=None,quiet=True):
     ''' Filter metadf based on user specified values
         samples = ['sample1','sample2'] or 'sample1'
         range = [start,end]
+        peptide_ranges = ['0001-0015','0030-0042'] or '0001-0015'
         charge = [1,2,3] or 1.0 
         index = [15,58,72] or [*range(0,50)] (Note: can just use filtered = metadf[0:50])
+        timept = [0.0,5.0,1e6] or 0.0
+        peptides = ['PEPTIDESEQ','PEPITYPEPTIDE'] or 'PEPTIDESEQ'
+        rep = [1,2,3] or 1
     '''
+    #if not metadf.empty():
     filtered = metadf.copy()
+    # else: 
+    #     print("Warning: No datasets selected")
+    #     return
+
     if samples:
         if isinstance(samples, list): samples = samples
         else: samples = [samples]
         try: filtered = filtered[filtered['sample'].isin(samples)]
         except: print("no column named sample")
-    if range:
-        try: filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
+    if not filtered.empty and range:
+        try: 
+            if set(['start_seq','end_seq']).issubset(filtered.columns):
+                filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
+            elif 'peptide_range' in filtered.columns:
+                filtered[['start_seq','end_seq']] = filtered['peptide_range'].str.split('-',expand=True).astype('int')
+                filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
+                filtered = filtered.drop(columns=['start_seq','end_seq'])
+            else: print("Missing start/end seq or peptide_range column")
         except: 
             print("Filter error: specify range=[start,end]")
             return
-    if charge:
+    if not filtered.empty and charge:
         if isinstance(charge, list): charge = charge
         else: charge = [charge]
         try: filtered = filtered[filtered['charge'].isin(charge)]
         except: print("no column named charge")
-    if index:
+    if not filtered.empty and index:
         if isinstance(index, list): index = index
         else: index = [index]
         filtered = filtered[filtered.index.isin(index)]
     
-    if timept or timept == 0: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and (timept or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         if isinstance(timept, list): timept = timept
         else: timept = [timept]
         try: filtered = filtered[filtered['time'].isin(timept)]
         except: print("no column named time")
-    if peptides: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and peptides: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         if isinstance(peptides, list): peptides = peptides
         else: peptides = [peptides]
         try: filtered = filtered[filtered['peptide'].isin(peptides)]
         except: print("no column named peptide")
-    if rep or rep == 0: 
+    if not filtered.empty and peptide_ranges: 
+        if isinstance(peptide_ranges, list): peptide_ranges = peptide_ranges
+        else: peptide_ranges = [peptide_ranges]
+        try: filtered = filtered[filtered['peptide_range'].isin(peptide_ranges)]
+        except: print("no column named peptide_ranges")
+    if not filtered.empty and (rep or rep == 0): 
         if isinstance(rep, list): rep = rep
         else: rep = [rep]
         try: filtered = filtered[filtered['rep'].isin(rep)]
@@ -506,14 +530,26 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0):
         peak = pd.DataFrame({'mz':[pred_mz],'Intensity':[intensity],'n_deut':[i]})
         peaks.append( peak )
         if zeroes > padding + 1 : break
-    return pd.concat(peaks,ignore_index=True)
+    peaks = pd.concat(peaks,ignore_index=True)
+
+    ## adding this section to get X_features at the peakpick step
+    envelope_height = peaks['Intensity'].max() * config.Env_threshold
+    env, env_Int = get_mz_env(envelope_height,peaks,pts=True)
+    y=np.array(peaks.Intensity.copy())
+    env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max()
+    peaks['env_width'] = charge*(env[1]-env[0])
+    peaks['env_symm'] = env_symmetry_adj
+    #peaks['skewness'] = skew(y_norm,bias=False)
+    peaks['max_namides']=count_amides(peptide,count_sc=0.0)
+
+    return peaks #pd.concat(peaks,ignore_index=True)
 
 def get_mz_env(value, df, colname='Intensity',pts=False):
     '''
     get mz values at value = envelope_height (e.g. 0.1*maxIntensity)
     to define the envelope width, for assessment of expected polymodal fits
     '''
-    df = df.reset_index()
+    df = df.copy().reset_index()
     boolenv = df[colname].gt(value)
     #envpts = boolenv.value_counts()[True] # number of points in envelope
     loweridx = df[colname].where(boolenv).first_valid_index()
@@ -540,6 +576,7 @@ def get_mz_env(value, df, colname='Intensity',pts=False):
     
     if pts: return np.array([min_mz, max_mz]), left_Int
     else: return np.array([min_mz, max_mz])
+
 
 ## Multi-binomial Functions
 def nCk_real(n,k):
@@ -725,9 +762,37 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
     if config.Full_boot: return ps, boot_residuals, np.array(centers) #return all the bootstrap fits 
     else: return pfit_bootstrap, perr_bootstrap, np.array(centers)
 
+def get_TDenv(datafits):
+   global Current_Isotope
+   df = datafits.copy()
+   test_set = df[['peptide','max_namides']].drop_duplicates()
+   test_peptides = dict(zip(test_set['peptide'],test_set['max_namides'])) 
+   for peptide,namides in test_peptides.items():
+      charge = 1
+      Current_Isotope= get_na_isotope(peptide,charge,npeaks=None)
+      TD_max_spectrum = n_binom_isotope(namides+5,0.0, namides, 0.999, 1.0) #can't set Nex to exactly 1.0, nCk gives error
+      TD_spec = pd.DataFrame(zip(np.arange(len(TD_max_spectrum)),TD_max_spectrum),columns=['mz','Intensity'])
+      [left,right] = get_mz_env(0.1*max(TD_max_spectrum),TD_spec,colname='Intensity')
+      TD_env_width = (right - left)*charge
+      peptide_idx = df[(df['peptide'] == peptide)].index
+      df.loc[peptide_idx,'TD_env_width'] = TD_env_width
+   return df
+
+def predict_pops(trained_model,datafits):
+   df = datafits.copy()
+   if 'TD_env_width' not in df.columns:
+      df = get_TDenv(df)
+   X_features = ['env_width','env_symm','max_namides','TD_env_width'] #"model4"
+   Xtest = df[X_features].to_numpy()
+   Xtest_pred = trained_model.predict(Xtest)
+   ytest_pred = np.argmax(Xtest_pred,axis=1)
+   ytest_pred_binary = np.array([min(y,1) for y in ytest_pred])+1
+   df['pred_pops'] = ytest_pred_binary
+   return df 
+
 
 ## Function to perform the fits on the metadf list of spectra
-def run_hdx_fits(metadf):
+def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataFrame()):
     global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata
     global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df
     global boot_centers #troubleshooting 
@@ -742,17 +807,7 @@ def run_hdx_fits(metadf):
     deutdata_all = pd.DataFrame()
     rawdata_all = pd.DataFrame()
     data_fits = pd.DataFrame()
-
-    data_fit_columns = ['time', 'rep', 'centroid', 'sample', 'peptide', 'peptide_range',
-                            'charge', 'env_width', 'env_symm', 'max_namides', 'icentroid_1', 'iD_corr1',
-                            'ipop_1', 'ipop_std_1', 'imu_1', 'iNex_1', 'iNex_std_1', 'iscaler',
-                            'icentroid_2', 'iD_corr2', 'ipop_2', 'ipop_std_2', 'imu_2', 'iNex_2',
-                            'iNex_std_2', 'icentroid_3', 'iD_corr3', 'ipop_3', 'ipop_std_3',
-                            'imu_3', 'iNex_3', 'iNex_std_3']
-    if config.Test_Data: data_fit_columns += ['solution_npops']
-    data_fit = pd.DataFrame(columns = data_fit_columns)
-    data_fit.to_csv(data_output_file_inprogress,index=True,index_label='Index',header=True) #create new file 
-    
+  
     if config.USE_PARAMS_FILE:
         get_parameters()
     if config.WRITE_PARAMS:
@@ -765,13 +820,28 @@ def run_hdx_fits(metadf):
             config_df = pd.read_csv(config.Preset_Pops_File).drop('Index',axis=1)
             print("Using user specified number of populations when available")
             Preset_Pops = True
+            max_pops = config_df['fix_npops'].max()
         except: 
             print("Preset_Pops_File does not exist, using default range")
             Preset_Pops = False
+            max_pops = config.Max_Pops
+    else: max_pops = config.Max_Pops
 
     n_fitfunc = n_binom_isotope # n_binomials #
     fitfunc = binom_isotope # binom #
     fitfunc_name=str(fitfunc).split()[1]  #fit function as string to add to filenames
+
+    ## generalize to preset column headers corresponding to max_pops
+    ## Columns may change still depending on X_features used for pops prediction
+    data_fit_columns = ['time', 'rep', 'centroid', 'sample', 'peptide', 'peptide_range',
+                            'charge', 'env_width', 'env_symm', 'skewness',
+                            'max_namides','iscaler']
+    for imp in range(1,max_pops+1):
+        data_fit_columns += ['icentroid_'+str(imp), 'iD_corr'+str(imp),'ipop_'+str(imp), 'ipop_std_'+str(imp), 
+                             'imu_'+str(imp), 'iNex_'+str(imp), 'iNex_std_'+str(imp)]
+    if config.Test_Data: data_fit_columns += ['solution_npops']
+    data_fit = pd.DataFrame(columns = data_fit_columns)
+    data_fit.to_csv(data_output_file_inprogress,index=True,index_label='Index',header=True) #create new file 
 
 
     ### Process all the Data ###
@@ -787,12 +857,12 @@ def run_hdx_fits(metadf):
         peptide = row['peptide']
         charge = row['charge']
         peptide_range = row['peptide_range']
-
+        
         shortpeptide = peptide if len(peptide) < 22 else peptide[:9]+'...'+peptide[-9:] #for tidy plot labels
         
         print("\nDataset",index,"(",dataset_count,"of",len(metadf),")")
         print("Performing fits for "+sample+" "+peptide_range+": "+peptide+" z="+str(int(charge)))
-
+                   
         if config.Data_Type == 1:
             if config.Test_Data:
                 config.Keep_Raw = True
@@ -805,17 +875,27 @@ def run_hdx_fits(metadf):
             csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
             if config.Keep_Raw:
                 deutdata, rawdata = read_specexport_data(csv_files,spec_path,row,keep_raw=config.Keep_Raw)
-            else: deutdata = read_specexport_data(csv_files,spec_path,row,keep_raw=False)     
-
+            else: deutdata = read_specexport_data(csv_files,spec_path,row,keep_raw=False)
+        
+        #update with user values .. this is doing unecessary peakpicking sometimes 
+        if not user_alldeutdata.empty:
+            userdeut = filter_metadf(user_alldeutdata,samples=sample,peptides=peptide,charge=charge,quiet=True)
+            if not userdeut.empty: deutdata = userdeut
+        if not user_allrawdata.empty:
+            userraw = filter_metadf(user_allrawdata,samples=sample,peptides=peptide,charge=charge,quiet=True)
+            if not userraw.empty: rawdata = userraw 
+       
         ## Now have deutdata, rawdata from any data format 
-
+        
         if deutdata.empty:
             print("No intensity data for "+str(sample)+' peptide '+peptide_range+' z= '+str(charge))
             continue
         if deutdata.Intensity.sum() == 0: 
             print("No intensity data for "+str(sample)+' peptide '+peptide_range+' z= '+str(charge))
             continue
- 
+        
+        
+
         time_points = sorted(set(deutdata.time))
         n_time_points = len(time_points)
 
@@ -989,8 +1069,8 @@ def run_hdx_fits(metadf):
                 high_n = max(low_n,high_n) #safety in case low_n > high_n
                 if Preset_Pops:
                     try:
-                        fixed_pop = filter_metadf(config_df,samples=sample,peptides=peptide,charge=charge,rep=j,timept=timept,quiet=True)#['fit_npops'][0]
-                        high_n  = int(fixed_pop['fit_npops'].values[0])
+                        fixed_pop = filter_metadf(config_df,samples=sample,peptides=peptide,charge=charge,rep=j,timept=timept,quiet=True)#['fix_npops'][0]
+                        high_n  = int(fixed_pop['fix_npops'].values[0])
                         low_n = high_n
                         #print("Number of fit populations is fixed to",high_n)
                     except: 
