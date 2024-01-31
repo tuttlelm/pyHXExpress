@@ -538,13 +538,16 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0):
     peaks = pd.concat(peaks,ignore_index=True)
 
     ## adding this section to get X_features at the peakpick step
-    envelope_height = peaks['Intensity'].max() * config.Env_threshold
-    env, env_Int = get_mz_env(envelope_height,peaks,pts=True)
-    y=np.array(peaks.Intensity.copy())
-    env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max()
-    peaks['env_width'] = charge*(env[1]-env[0])
-    peaks['env_symm'] = env_symmetry_adj
-    #peaks['skewness'] = skew(y_norm,bias=False)
+    try: #errors for the empty spectra
+        envelope_height = peaks['Intensity'].max() * config.Env_threshold
+        env, env_Int = get_mz_env(envelope_height,peaks,pts=True)
+        y=np.array(peaks.Intensity.copy())
+        env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max()
+        peaks['env_width'] = charge*(env[1]-env[0])
+        peaks['env_symm'] = env_symmetry_adj
+        #peaks['skewness'] = skew(y_norm,bias=False)
+    except:
+        print("")
     peaks['max_namides']=count_amides(peptide,count_sc=0.0)
 
     return peaks #pd.concat(peaks,ignore_index=True)
