@@ -39,7 +39,8 @@ if Data_Type == 1:
 if Data_Type == 2:
     #Data_DIR = '/data/tuttle/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport'
     #Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
-    Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
+    Data_DIR = '/home/tuttle/data/HDX-MS/sHSP_Heterooligomers/b1_hetero/SpecExport/'
+    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
     Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = True #process_all = True is limited to existing .fasta files, this setting overrides user_ settings
     User_mutants = [''] #['WT','S19D','S45D','S59D','D3']#['All'] #
@@ -66,9 +67,9 @@ SVG = False # also save figures as an svg file, slow, but better for making figu
 Bootstrap = True #False #
 Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
 
-Dfrac = 0.9 #fraction deuterated for "fully" deuterated exchange buffer 
+Dfrac = 0.90 # Estimated fraction of D/H in the deuterated buffer
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
-setNoise = 200 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
+setNoise = 50 #False or value. if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
@@ -80,8 +81,8 @@ Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 1.0 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
 Min_Pops = 1 # Min_Pops to Max_Pops sets the range of populations to fit, set to same value to force single population
-Max_Pops = 3 #maximum number of underlying populations to fit
-Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
+Max_Pops = 2 #maximum number of underlying populations to fit
+Pop_Thresh = 0.05 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
 Ncurve_p_accept = 0.05 #stringency for accepting more fit populations      
 Random_Seed = 16 #used for parameter initialization
 Boot_Seed = True #if False, same seed as Random_Seed, 
