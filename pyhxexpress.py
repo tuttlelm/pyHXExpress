@@ -860,7 +860,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
         data_fit_columns += ['centroid_'+str(imp), 'Dabs_'+str(imp),'Dabs_std_'+str(imp),'pop_'+str(imp), 'pop_std_'+str(imp), ]
     #                         'mu_'+str(imp), 'Nex_'+str(imp), 'Nex_std_'+str(imp)]
     if config.Test_Data: data_fit_columns += ['solution_npops']
-    data_fit = pd.DataFrame(columns = data_fit_columns)
+    data_fit = pd.DataFrame(columns = data_fit_columns) #also reinitialize each rep
     data_fit.to_csv(data_output_file_inprogress,index=True,index_label='Index',header=True) #create new file 
 
 
@@ -1085,6 +1085,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                 centroid_j = sum(mz*y)/sum(y) #centroid from unfit picked peaks
 
                 #data_fit =pd.DataFrame({'time':[timept],'rep':[j],'centroid':[centroid_j]})
+                data_fit = pd.DataFrame(columns = data_fit_columns)
                 data_fit.loc[0,'data_id'] = index # index of metadf file used for fits 
                 data_fit.loc[0,'time'] = timept
                 data_fit.loc[0,'rep'] = j
@@ -1111,7 +1112,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                     except: 
                         #print("Failed to set the fixed population. Using,",low_n,"to",high_n,"populations")
                         pass
-
+                best_n_curves = low_n
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
                     print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,"          ",end='\r',flush=True) 
                     initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed)
@@ -1136,8 +1137,11 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                     if n_curves == low_n: print( timelabel +' '+str(sample)+' '+peptide_range +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(fit),file=fout)
 
                     if n_curves > low_n:
-                        F = ( ( prev_rss - rss ) / (n_bins + 1 - n_params - 3)  ) / ( rss / ( n_bins + 1 - n_params ) )
-                        p = 1.0 - stats.f.cdf( F, n_bins + 1 - n_params - 3, n_bins + 1 - n_params )
+                        # F = (prev_rss - curr_rss)/(dof_prev - dof_curr) / (rss_curr / dof_curr)
+                        #   = (prev_rss - rss)/(n_bins + 1 - (n_params - 3) - (nbins + 1 - n_params)) / (rss / (nbins + 1 - n-params))
+                        #                      xnbinsx + x1x - xnparamsx + 3 - xnbinsx - x1x + xnparamsx  = 3 (1 x frac, mu, nex for each additional curve)
+                        F = ( ( prev_rss - rss ) / (3)  ) / ( rss / ( n_bins + 1 - n_params ) )
+                        p = 1.0 - stats.f.cdf( F, 3, n_bins + 1 - n_params )
                         p_corr = p * (n_curves-1)
                         print( timelabel +' '+str(sample)+' '+peptide_range  +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(fit),file=fout)
                         if p_corr >= config.Ncurve_p_accept:
