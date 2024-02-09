@@ -1134,7 +1134,9 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                     # Perform statistical test, keep the best model
                     n_params = len( initial_estimate )
                     rss = calc_rss( y_norm, fit_y, )
-                    if n_curves == low_n: print( timelabel +' '+str(sample)+' '+peptide_range +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(fit),file=fout)
+                    if n_curves == low_n: print( timelabel +' '+str(sample)+' '+peptide_range+' z'+str(int(charge))+' rep'+str(j)
+                                                +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
+                                                +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
 
                     if n_curves > low_n:
                         # F = (prev_rss - curr_rss)/(dof_prev - dof_curr) / (rss_curr / dof_curr)
@@ -1143,7 +1145,9 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         F = ( ( prev_rss - rss ) / (3)  ) / ( rss / ( n_bins + 1 - n_params ) )
                         p = 1.0 - stats.f.cdf( F, 3, n_bins + 1 - n_params )
                         p_corr = p * (n_curves-1)
-                        print( timelabel +' '+str(sample)+' '+peptide_range  +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(fit),file=fout)
+                        print( timelabel +' '+str(sample)+' '+peptide_range +' z'+str(int(charge))+' rep'+str(j)
+                              +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
+                              +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
                         if p_corr >= config.Ncurve_p_accept:
                             p_corr = prev_pcorr 
                             break # exit the for n_curves loop; insufficient improvement in fit
@@ -1202,7 +1206,9 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         for n in range(best_n_curves):
                             boot_centk = (boot_centers[:,n]-centroidUD)*charge*1/d_corr
                             #print(boot_centk)                            
-                            nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN                            
+                            nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN
+                            nm_marker = [50.0]*len(nm)
+                            nm_alpha = [0.6]*len(nm)                            
                             fracn = fracs_array[:,n]                            
 
                             len_nm = len(nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)])
@@ -1217,8 +1223,8 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                                 bfrac_avg[n] = fracn.mean()
                                 bfrac_err[n] = fracn.std()
                             #ax2[i,j-1].scatter(fracs_array[:,n],mus_array[:,n],label='pop'+str(n))
-                            ax2[i,j-1].scatter(nm,fracs_array[:,n],label='pop'+str(n),alpha=nm_alpha,c=mpl_colors_light[n],s=nm_marker)
-                            ax2[i,j-1].scatter(boot_centk,fracs_array[:,n],label='pop'+str(n),alpha=0.8,c='purple',marker='x',zorder=0)
+                            ax2[i,j-1].scatter(nm,fracn,label='pop'+str(n),alpha=nm_alpha,c=mpl_colors_light[n],s=nm_marker)
+                            ax2[i,j-1].scatter(boot_centk,fracn,label='pop'+str(n),alpha=0.8,c='purple',marker='x',zorder=0)
                             ax2[i,j-1].errorbar(bnm_avg[n],bfrac_avg[n],xerr=bnm_err[n],yerr=bfrac_err[n],elinewidth=2,zorder=10,color=mpl_colors_dark[n])
                             if overlay_reps:
                                 ax2[i,ncols-1].scatter(nm,fracs_array[:,n],alpha=0.6,label=str(j)+'_pop'+str(n),)
