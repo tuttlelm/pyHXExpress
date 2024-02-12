@@ -18,7 +18,7 @@ import importlib
 import tensorflow as tf
 from keras.models import load_model
 from scipy.optimize import curve_fit
-from scipy.stats import rankdata, skew
+#from scipy.stats import rankdata, skew
 #from scipy.special import comb
 from math import gamma, lgamma, exp
 from pyteomics import mass
@@ -605,10 +605,17 @@ def nCk_real(n,k):
         return exp(log_nCk)
     else: return gamma(n+1)/(gamma(k+1)*gamma(n-k+1))
 
-def binom(bins, n, p):
-    k = np.arange(bins+1).astype(float)
-    nCk = [nCk_real(n,y) for y in k]
-    return nCk*np.power(p,k)*np.power(1-p,n-k)
+def binom(bins, n, p): 
+    k = np.arange(bins+1).astype('float64') 
+    nCk = [nCk_real(n,y) for y in k]    
+    fp1 = np.float_power(p,k)
+    fp2 = np.float_power(1-p,np.clip(n-k,0.0,np.inf)) #require n > k   
+    binoval = nCk*fp1*fp2
+    # with warnings.catch_warnings(record=True) as w:
+    #     binoval = nCk*fp1*fp2
+    #     if len(w)>0:
+    #         print("n,k,p,binoval",n,k,p,binoval)
+    return binoval
 
 def binom_isotope(bins, n,p):
     bs = binom(bins,n,p)
@@ -952,10 +959,10 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
         else: ncols = max_time_reps
         
         #figsize is width, height
-        fig, ax = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False)
-        fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False)
-        if config.Test_Data: dfig,dax=plt.subplots(figsize=(nrows/3+9,6)) # numD vs time plot
-        else: dfig,dax=plt.subplots(figsize=(9,6))
+        fig, ax = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=1,clear=True)
+        fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=2,clear=True)
+        if config.Test_Data: dfig,dax=plt.subplots(figsize=(nrows/3+9,6),num=3,clear=True) # numD vs time plot
+        else: dfig,dax=plt.subplots(figsize=(9,6),num=3,clear=True)
 
         #time points are rows i, reps are columns j
         
@@ -1186,7 +1193,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         p0, bbounds = init_params(best_n_curves,max_n_amides,max_y,seed=bseed) #best_n_curves
                         p0_boot.append(p0)
                     #p0_boot, bbounds = init_params(best_n_curves,n_amides,max_y,seed=config.Random_Seed)
-                    #rss = 0.0 #calc_rss( y_norm, fit_y, ) #this doesn't seem appropriate for binom fits            
+                    #rss = 0.0 #calc_rss( y_norm, fit_y, ) #this doesn't seem appropriate for binom fits         
                     pfit, boot_rss, boot_centers = fit_bootstrap(p0_boot,bbounds,n_bins,y_norm,sigma_res=Noise/ynorm_factor, 
                                                 nboot=config.Nboot,ax=ax[i,j-1],full=config.Full_boot,yscale=scale_y)
                     #pfit = get_params(*pfit,sort=False,norm=True,unpack=False)
@@ -1335,6 +1342,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                 reportdf.loc[index,'polymodal'] = polystr
                 if any(tp in polymodal for tp in [0,1e6]):
                     reportdf.loc[index,'comment'] = "Warning: UN/TD polymodal"
+                reportdf.loc[index,'dataset_run'] = "Yes"
                 save_metadf(reportdf,filename="metadf_asrun_"+date+".csv")
                 try:
                     data_fit.to_csv(data_output_file_inprogress,mode='a',index_label='Index',header=False) 
@@ -1419,6 +1427,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
     except:
         print("Could not save results file")
 
+    plt.close("all")
     fout.close()
 
     return
