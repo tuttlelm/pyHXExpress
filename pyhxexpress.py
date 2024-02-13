@@ -605,16 +605,40 @@ def nCk_real(n,k):
         return exp(log_nCk)
     else: return gamma(n+1)/(gamma(k+1)*gamma(n-k+1))
 
-def binom(bins, n, p): 
-    k = np.arange(bins+1).astype('float64') 
-    nCk = [nCk_real(n,y) for y in k]    
-    fp1 = np.float_power(p,k)
-    fp2 = np.float_power(1-p,np.clip(n-k,0.0,np.inf)) #require n > k   
-    binoval = nCk*fp1*fp2
+def binom(bins, n, p):      
+    ## If ki > n, binoval should be 0 : can't pick more than availble
+    ## shouldn't even eval np.powers ... 
+    ## maybe set k to min(bins,int(n)) and zerofill bins > n 
+    # binoval = np.zeros(bins+1).astype('float64')
+    # k = np.arange(round(n)+1).astype('float64')
+    # nCk = [nCk_real(n,y) for y in k]    
+    # fp1 = np.float_power(p,k)
+    # fp2 = np.float_power(1-p,n-k)
+    # binom_bins = nCk*fp1*fp2
+    # binoval[:len(binom_bins)] = binom_bins
+
+    k = np.arange(bins+1).astype('float64')
+    nCk = [nCk_real(n,y) for y in k]
+
+    with np.errstate(all='ignore'):
+        fp1 = np.float_power(p,k)
+        fp2 = np.float_power(1-p,n-k) #fits, but np.power overflows     
+        binoval = nCk*fp1*fp2
+        binoval = np.nan_to_num(binoval,nan=0.0)
+
+    #fp2 = np.clip(np.float_power(1-p,n-k),sys.float_info.min,sys.float_info.max)
+    #fp2 = np.float_power(1-p,np.clip(n-k,0.0,np.inf)) #require n > k    ### This is still unstable in fits
+
+    #binoval = nCk*fp1*fp2
     # with warnings.catch_warnings(record=True) as w:
+    #     fp1 = np.float_power(p,k)
+    #     fp2 = np.float_power(1-p,n-k) #fits, but np.power overflows 
     #     binoval = nCk*fp1*fp2
     #     if len(w)>0:
     #         print("n,k,p,binoval",n,k,p,binoval)
+    #         binoval = np.nan_to_num(binoval,nan=0.0)
+    #         print("fixed:",binoval)
+        
     return binoval
 
 def binom_isotope(bins, n,p):
@@ -1162,7 +1186,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         _,_,_,frac_check = get_params(*fit,norm=True,unpack=True)
                         if np.min(frac_check) < config.Pop_Thresh:
                             p_corr = prev_pcorr
-                            print ("min population below threshold: falling back to",(n_curves-1),"curve(s)")
+                            print ("\nmin population below threshold: falling back to",(n_curves-1),"curve(s)")
                             break
                     prev_rss = rss   #only gets to these if N is better than N-1           
                     prev_pcorr = p_corr
