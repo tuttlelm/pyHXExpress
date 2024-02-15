@@ -16,7 +16,7 @@ if USE_PARAMS_FILE:
 ## OR if USE_PARAMS_FILE = False *** COMPLETE THE FOLLOWING SECTION *** ##
 WRITE_PARAMS = True #save the params to hdxms_params_$.py file in Data_DIR, can then be read in as PARAMS_FILE 
 Allow_Overwrite = True #don't create a new filename if file already exists
-
+Save_Spectra = False
 Read_Spectra_List = False # Specify files to be run in a file, includes peptide/charge info. See example files.
                 # To use this, Recommend setting to False to create and write 'metadf' to file with all availble datasets
                 # then remove unwanted datasets from the file, and read it in with Read_Spectra_List = True

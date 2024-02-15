@@ -80,7 +80,7 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
     '''
     all_params = ['Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Dfrac','Env_limit', 'Env_threshold', 'Full_boot', 'Hide_Figure_Output', 
     'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Nboot', 'Ncurve_p_accept', 'Overlay_replicates', 'Output_DIR', 'Pop_Thresh',
-    'process_ALL', 'setNoise', 'Random_Seed', 'Read_Spectra_List', 'SVG', 'Scale_Y_Values', 'Test_Data', 'User_mutants', 'User_peptides', 'Y_ERR',
+    'process_ALL', 'setNoise', 'Random_Seed', 'Read_Spectra_List', 'Save_Spectra','SVG', 'Scale_Y_Values', 'Test_Data', 'User_mutants', 'User_peptides', 'Y_ERR',
     'WRITE_PARAMS']
     filename = "hdxms_params_"+config.date+".py"
     write_file = os.path.join(write_dir,filename)
@@ -132,12 +132,17 @@ def get_hxexpress_meta(hx_file):
     return metadata
 
 def save_metadf(metadf,filename=None):
+    savedf = metadf.copy()
+    int_cols = ['charge','start_seq','end_seq','rep']
     if not os.path.exists(config.Output_DIR): os.makedirs(config.Output_DIR)
+    for ic in int_cols:
+        if ic in savedf.columns:
+            savedf[ic] = savedf[ic].astype(int)
     if filename:        
         saveto = os.path.join(config.Output_DIR,filename)
     else: 
         saveto = os.path.join(config.Output_DIR,'hdx_spectra_list_metadf_'+date+'.csv')
-    metadf.to_csv(saveto,index_label='Index')
+    savedf.to_csv(saveto,index_label='Index')
 
 def read_metadf(filename):
     try:
@@ -843,7 +848,7 @@ def predict_pops(trained_model,datafits):
 ## Function to perform the fits on the metadf list of spectra
 def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataFrame()):
     global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata
-    global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df
+    global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df, fitparams_all
     global boot_centers #troubleshooting 
 
     now = datetime.now()
@@ -859,6 +864,9 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
     deutdata_all = pd.DataFrame()
     rawdata_all = pd.DataFrame()
     data_fits = pd.DataFrame()
+    fitparams_all = pd.DataFrame()
+
+    sample_id_cols = ['data_id','sample', 'peptide', 'peptide_range','start_seq','end_seq','charge', 'time', 'rep']
   
     if config.USE_PARAMS_FILE:
         get_parameters()
@@ -885,7 +893,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
 
     ## generalize to preset column headers corresponding to max_pops
     ## Columns may change still depending on X_features used for pops prediction
-    data_fit_columns = [ 'data_id','sample', 'peptide', 'peptide_range','charge', 'time', 'rep', 
+    data_fit_columns = [ 'data_id','sample', 'peptide', 'peptide_range','start_seq','end_seq','charge', 'time', 'rep', 
                         'centroid', 'env_width', 'env_symm', 'max_namides','fit_pops','p-value']
     for imp in range(1,max_pops+1):
         data_fit_columns += ['centroid_'+str(imp), 'Dabs_'+str(imp),'Dabs_std_'+str(imp),'pop_'+str(imp), 'pop_std_'+str(imp), ]
@@ -1083,7 +1091,8 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
 
             ## TODO would like to test n_curves for all reps in time point, then do bootstrap with best_n_curves
             for j in range(1,n_time_rep+1):
-                 
+                fitparamsdf = pd.DataFrame()
+
                 lowermz = deutdata.mz[deutdata.rep==j].min()
                 uppermz = deutdata.mz[deutdata.rep==j].max()
             
@@ -1124,7 +1133,9 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                 data_fit.loc[0,'sample'] = sample
                 data_fit.loc[0,'peptide'] = peptide
                 data_fit.loc[0,'peptide_range'] = peptide_range
-                data_fit.loc[0,'charge'] = charge
+                data_fit.loc[0,'start_seq'] = int(peptide_range.split('-')[0])
+                data_fit.loc[0,'end_seq'] = int(peptide_range.split('-')[1])
+                data_fit.loc[0,'charge'] = int(charge)
                 
                         
                 fstdev=[]     
@@ -1159,17 +1170,30 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         print (f"failed to fit: time {timelabel} rep {j} N={n_curves} curves")
                         break
                     fit_y = n_fitfunc( n_bins, *fit )
-                    if n_curves == low_n: 
-                        best_fit = fit 
-                        best_covar = covar
+  
                     # Perform statistical test, keep the best model
                     n_params = len( initial_estimate )
                     rss = calc_rss( y_norm, fit_y, )
-                    if n_curves == low_n: print( timelabel +' '+str(sample)+' '+peptide_range+' z'+str(int(charge))+' rep'+str(j)
-                                                +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
-                                                +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
 
-                    if n_curves > low_n:
+                    ###IN PROGRESS - record all initial fit params
+                    fitparamsdf[sample_id_cols] = data_fit[sample_id_cols] 
+                    fitparamsdf['ncurves'] = n_curves
+                    fitparamsdf['nboot'] = 0
+                    fitparamsdf['rss'] = rss
+                    fitparamsdf['Fit_Params'] = (' ').join(map(str,fit))
+                     
+
+                    if n_curves == low_n:
+                        best_fit = fit 
+                        best_covar = covar 
+                        print( timelabel +' '+str(sample)+' '+peptide_range+' z'+str(int(charge))+' rep'+str(j)
+                                +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
+                                +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
+                        fitparamsdf['p-value'] = p_corr
+                        fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
+                        save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
+                                                
+                    else: #if n_curves > low_n:
                         # F = (prev_rss - curr_rss)/(dof_prev - dof_curr) / (rss_curr / dof_curr)
                         #   = (prev_rss - rss)/(n_bins + 1 - (n_params - 3) - (nbins + 1 - n_params)) / (rss / (nbins + 1 - n-params))
                         #                      xnbinsx + x1x - xnparamsx + 3 - xnbinsx - x1x + xnparamsx  = 3 (1 x frac, mu, nex for each additional curve)
@@ -1179,6 +1203,11 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         print( timelabel +' '+str(sample)+' '+peptide_range +' z'+str(int(charge))+' rep'+str(j)
                               +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
                               +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
+                        
+                        fitparamsdf['p-value'] = p_corr
+                        fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
+                        save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
+                        
                         if p_corr >= config.Ncurve_p_accept:
                             p_corr = prev_pcorr 
                             break # exit the for n_curves loop; insufficient improvement in fit
@@ -1188,11 +1217,14 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                             p_corr = prev_pcorr
                             print ("\nmin population below threshold: falling back to",(n_curves-1),"curve(s)")
                             break
+                                       
                     prev_rss = rss   #only gets to these if N is better than N-1           
                     prev_pcorr = p_corr
                     best_fit = fit            
                     best_covar = covar 
-                    best_n_curves = n_curves    
+                    best_n_curves = n_curves
+
+                       
                 #end n_curves for loop
 
                 data_fit.loc[0,'fit_pops'] = best_n_curves
@@ -1231,6 +1263,17 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                         mus_array = p_array[:,best_n_curves+1:best_n_curves*2+1]                
                         fracs_array = p_array[:,-best_n_curves:]
                         #nm_alpha = rankdata([-1*br for br in boot_rss],method='dense')/len(boot_rss)/2.0+0.2
+                        
+                        for pb in range(len(boot_rss)):
+                            fitparamsdf = pd.DataFrame()
+                            fitparamsdf[sample_id_cols] = data_fit[sample_id_cols] 
+                            fitparamsdf['ncurves'] = best_n_curves
+                            fitparamsdf['nboot'] = pb+1
+                            fitparamsdf['rss'] = boot_rss[pb]
+                            fitparamsdf['Fit_Params'] = (' ').join(map(str,p_array[pb]))
+                            fitparamsdf['p-value'] = p_corr
+                            fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
+                        save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
 
                         bnm_avg, bnm_err = {}, {}
                         bfrac_avg,bfrac_err = {}, {}
@@ -1450,6 +1493,14 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
         data_fits.to_csv(data_output_file,index_label='Index')
     except:
         print("Could not save results file")
+
+    if config.Save_Spectra:
+        try:
+            print("Saving picked peaks as alldeutdata_ and Raw spectral data as allrawdata_")
+            deutdata_all.to_csv(os.path.join(config.Output_DIR,'alldeutata_'+date+'.csv'),index_label='Index')
+            rawdata_all.to_csv(os.path.join(config.Output_DIR,'allrawdata_'+date+'.zip'),index_label='Index',compression={'method': 'zip', 'compresslevel': 9})
+        except: 
+            print("Could not save deutdata and rawdata to file")
 
     plt.close("all")
     fout.close()
