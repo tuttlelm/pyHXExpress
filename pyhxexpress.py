@@ -252,7 +252,7 @@ def filter_metadf(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=N
         peptides = ['PEPTIDESEQ','PEPITYPEPTIDE'] or 'PEPTIDESEQ'
         rep = [1,2,3] or 1
     '''
-    #if not metadf.empty():
+    #if not metadf.empty:
     filtered = metadf.copy()
     # else: 
     #     print("Warning: No datasets selected")
@@ -262,7 +262,8 @@ def filter_metadf(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=N
         if isinstance(samples, list): samples = samples
         else: samples = [samples]
         try: filtered = filtered[filtered['sample'].isin(samples)]
-        except: print("no column named sample")
+        except: 
+            if not quiet: print("no column named sample")
     if not filtered.empty and range:
         try: 
             if set(['start_seq','end_seq']).issubset(filtered.columns):
@@ -307,7 +308,7 @@ def filter_metadf(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=N
         except: print("no column named rep")
       
     if quiet == False: 
-        print("Dataframe filtered to",len(filtered),"from",len(metadf),"total datasets")
+        print("Dataframe filtered to",len(filtered),"from",len(metadf),"total entries")
         if len(filtered) == 0: print("Warning: No datasets selected")
     return filtered
 
@@ -375,6 +376,8 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
         peaks['charge']=charge
         peaks['rep']=rep
         peaks['peptide_range']=peptide_range
+        peaks['start_seq']=start_seq
+        peaks['end_seq']=end_seq
         peaks['file']=dfrow['file']
         if keep_raw:
             raw['time']=delay
@@ -383,6 +386,8 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
             raw['charge']=charge
             raw['rep']=rep
             raw['peptide_range']=peptide_range
+            raw['start_seq']=start_seq
+            raw['end_seq']=end_seq
             raw['file']=dfrow['file']
             all_raw = pd.concat([all_raw,raw])
         dfs = pd.concat([dfs,peaks],ignore_index=True)
@@ -429,6 +434,8 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw,mod_dict={}):
         peaks['charge']=row['charge']
         peaks['peptide']=row['peptide']
         peaks['peptide_range']=row['peptide_range']
+        try:  peaks[['start_seq','end_seq']] = peaks['peptide_range'].str.split('-',expand=True).astype('int')
+        except: pass
         peaks['file']=row['file']
         if peaks.Intensity.sum() > 0:
             dfs.append( peaks )         
@@ -440,6 +447,8 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw,mod_dict={}):
             raw['charge']=row['charge']
             raw['rep']=rep
             raw['peptide_range']=row['peptide_range']
+            try: raw[['start_seq','end_seq']] = raw['peptide_range'].str.split('-',expand=True).astype('int')
+            except: pass 
             raw['file']=row['file']
             rawdata = pd.concat([rawdata,raw])
     if len(dfs) > 0: 
@@ -1497,7 +1506,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
     if config.Save_Spectra:
         try:
             print("Saving picked peaks as alldeutdata_ and Raw spectral data as allrawdata_")
-            deutdata_all.to_csv(os.path.join(config.Output_DIR,'alldeutata_'+date+'.csv'),index_label='Index')
+            deutdata_all.to_csv(os.path.join(config.Output_DIR,'alldeutdata_'+date+'.csv'),index_label='Index')
             rawdata_all.to_csv(os.path.join(config.Output_DIR,'allrawdata_'+date+'.zip'),index_label='Index',compression={'method': 'zip', 'compresslevel': 9})
         except: 
             print("Could not save deutdata and rawdata to file")
