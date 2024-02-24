@@ -11,16 +11,16 @@ date = now.strftime("%d%b%Y")
 '''Settings for Test Data Sets'''
 ##########################################
 
-USE_PARAMS_FILE = False  #### IF THIS IS TRUE ALL PARAMETERS ARE READ FROM PARAMS_FILE: ### obsolete with import config 
 WRITE_PARAMS = True #save the params to hdxms_params_$.py file in Data_DIR, can then be read in as PARAMS_FILE 
 Allow_Overwrite = True #don't create a new filename if file already exists
 
-Read_Spectra_List = True 
 Test_Data = True
 Data_Type = 1 
+Save_Spectra = False
 process_ALL = True
-Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
-Read_Spectra_List = True
+#Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
+Data_DIR = '/home/tuttle/data/HDX-MS/pyHXExpress/Bimodal_HDX_Data'
+Read_Spectra_List = True #get metadf from Metadf_File
 Metadf_File = "hdxms_testsets_metadf.csv"              
 Output_DIR = os.path.join(Data_DIR,'output_'+str(date),'')
 #if not os.path.exists(Output_DIR): os.makedirs(Output_DIR)
@@ -40,7 +40,8 @@ setNoise = 100 #if noise value is known, specify instead of estimating as Y_ERR 
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
-
+Dfrac = 0.90 
+Nterm_subtract = 1 #number of N-term residues to remove from possible exchanging NH's (usually 1 or 2)
 Zero_Filling = 6 # large value to try to fit 3 binomials on short peptides, not generally recommended.
 Peak_Resolution = 75.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Binomial_dCorr = True # fit n=1 binomial for UN/TD to calculate d_corr and back exchange values
