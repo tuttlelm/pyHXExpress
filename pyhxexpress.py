@@ -1149,7 +1149,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         time_points = sorted(set(deutdata.time))
         n_time_points = len(time_points)
         time_indexes = sorted(set(deutdata.time_idx)) ##TESTING
-        print(time_points)
+        print("Found time points: "+', '.join(map(str, time_points)))
         max_time_reps = int(sorted(set(deutdata.rep))[-1])
         Current_Isotope= get_na_isotope(peptide,charge,mod_dict=mod_dic)
 
@@ -1256,11 +1256,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             dax_log = False
             Noise = config.Y_ERR/100.0 * deutdata.Intensity.max()
             #use pred undeut mz if no UN/TD data
-            centroidUD = undeut_mz
+            centroidUD = sum(Current_Isotope*mz[0:len(Current_Isotope)])/sum(Current_Isotope)
             centroidTD = centroidUD + n_amides*config.Dfrac/charge
-            d_corr = (charge*(centroidTD - centroidUD)/n_amides) # = config.Dfrac
+            d_corr = (charge*(centroidTD - centroidUD)/n_amides) # = config.Dfrac #units mass per amide
 
-        #print ("centroids:",centroidUD, centroidTD,"charge, amides, dcorr",charge,n_amides,d_corr)
+        #print ("centroids and delta mass:",centroidUD, centroidTD,(centroidTD-centroidUD)*charge,"charge, amides, dcorr",charge,n_amides,d_corr)
 
         if config.setNoise: Noise = config.setNoise  
 
