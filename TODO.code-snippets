@@ -1,5 +1,10 @@
 TODO
 
+make sure pcorr calculation is same as Mike's excel
+Generate nice summary report, flag bimodal (and whether TD is bimodal)
+could also flag when a pboot solution is < min_pop as might support fewer pops
+
+
 Bugs:
 
 getting some overflow errors for np.pow() for very long peptides
@@ -26,13 +31,8 @@ Features:
 >Add N=1 data to NDeut plots and hline for theoretical TD
 >keep N=1 *fit and *bestfit in data_fits for later use
 >need a plotter function to plot desired data and fits at will
->run_hdx_fits needs option to use already loaded deutdata/rawdata 
-  that way could modify & rerun, especially for crappy spectra 
->Write function to scan through all_raw_data and use model weights to predict npops 1 or 2+
-  tie in to fixed_pops option to use this during fits
 
->>change deut_fits values to bootstrap averages,stdev instead of single fit values,pcorr
-Need to save data in a way that you can recreate plots without rerunning 
+>>Need to save data in a way that you can recreate plots without rerunning 
 
 >>calculate average time per run to give estimated time remaining
 
@@ -40,12 +40,7 @@ Need to save data in a way that you can recreate plots without rerunning
 
 >>multithreading
 
->>warn if Un/TD require > 1 population
-could have comment column with preset flags
-1) warn if Un/TD require > 1 population
-2-3) env_res suggests more/fewer populations are possible 
-4) #D > TD
-
+>> separate interactive jupyter notebook to trim data
 
 >> output to format recognized by HDBoxeR and pyHDX for downstream analyses
 
@@ -53,9 +48,5 @@ could have comment column with preset flags
 Notes:
 limit by envelope on 5 residue peptide ... hitting one 3pop, missing some 2pop
 
-should collect envelope, number of amides, real number of pops for test data and see if a better env vs pops relationship can be crafted
-explore env_width relative to UN and/or TD env_width and relationship to n_curves
-
 gather nboot, noise vs average values to numerically support approach
 
-could simulate mono,bi,trimodal data for some set of peptide/charges and train on that using env width, max_namides, ~symmetry 

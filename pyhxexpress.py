@@ -78,7 +78,7 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
     > pyhdxexpress.config = config #must run to update parameters to be used
         file needs to be in same file location as the current working directory set in the notebook (this is the default save location)
     '''
-    all_params = ['Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Env_limit', 'Env_threshold', 'Full_boot', 'Hide_Figure_Output', 
+    all_params = ['Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Dfrac','Env_limit', 'Env_threshold', 'Full_boot', 'Hide_Figure_Output', 
     'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Nboot', 'Ncurve_p_accept', 'Overlay_replicates', 'Output_DIR', 'Pop_Thresh',
     'process_ALL', 'setNoise', 'Random_Seed', 'Read_Spectra_List', 'SVG', 'Scale_Y_Values', 'Test_Data', 'User_mutants', 'User_peptides', 'Y_ERR',
     'WRITE_PARAMS']
@@ -778,7 +778,7 @@ def get_TDenv(datafits):
    for peptide,namides in test_peptides.items():
       charge = 1
       Current_Isotope= get_na_isotope(peptide,charge,npeaks=None)
-      TD_max_spectrum = n_binom_isotope(namides+5,0.0, namides, 0.999, 1.0) #can't set Nex to exactly 1.0, nCk gives error
+      TD_max_spectrum = n_binom_isotope(namides+5,0.0, namides, config.Dfrac, 1.0) #use Dfrac instead of 0.999 for TD
       TD_spec = pd.DataFrame(zip(np.arange(len(TD_max_spectrum)),TD_max_spectrum),columns=['mz','Intensity'])
       [left,right] = get_mz_env(0.1*max(TD_max_spectrum),TD_spec,colname='Intensity')
       TD_env_width = (right - left)*charge
@@ -1111,7 +1111,7 @@ def run_hdx_fits(metadf,user_alldeutdata=pd.DataFrame(),user_allrawdata=pd.DataF
                     if n_curves > low_n:
                         F = ( ( prev_rss - rss ) / 2  ) / ( rss / ( n_bins + 1 - n_params ) )
                         p = 1.0 - stats.f.cdf( F, 2, n_bins + 1 - n_params )
-                        p_corr = p * (n_curves-1)
+                        p_corr = p * (n_curves-1) #in excel Mike uses F_Dist 
                         print( timelabel +' '+str(sample)+' '+peptide_range  +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(fit),file=fout)
                         if p_corr >= config.Ncurve_p_accept:
                             p_corr = prev_pcorr 

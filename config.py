@@ -66,6 +66,7 @@ SVG = False # also save figures as an svg file, slow, but better for making figu
 Bootstrap = True #False #
 Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
 
+Dfrac = 0.9 #fraction deuterated in "fully" deuterated buffer
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
 setNoise = 200 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
