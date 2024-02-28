@@ -72,6 +72,7 @@ Binomial_dCorr = True #use the n=1 binomial fit to determine UN/TD centers for d
                     # this is essential if dirty spectra; otherwise using sum(mz*y)/sum(y) which will be wrong if there are contaminating peaks
 Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
+Nex_Max_Scale = 1.2
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 1.0 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
