@@ -6,4 +6,5 @@ matplotlib
 pyteomics
 brain-isotopic-distribution
 biopython
-
+tensorflow==2.13.0
+keras
