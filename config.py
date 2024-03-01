@@ -9,14 +9,9 @@ USE_PARAMS_FILE = False
 '''begin user input'''
 ##########################################
 
-USE_PARAMS_FILE = False  #### IF THIS IS TRUE ALL PARAMETERS ARE READ FROM PARAMS_FILE:
-if USE_PARAMS_FILE:
-    PARAMS_FILE = '/home/tuttle/data/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport/hdxms_params.py'
-
-## OR if USE_PARAMS_FILE = False *** COMPLETE THE FOLLOWING SECTION *** ##
 WRITE_PARAMS = True #save the params to hdxms_params_$.py file in Data_DIR, can then be read in as PARAMS_FILE 
 Allow_Overwrite = True #don't create a new filename if file already exists
-
+Save_Spectra = False
 Read_Spectra_List = False # Specify files to be run in a file, includes peptide/charge info. See example files.
                 # To use this, Recommend setting to False to create and write 'metadf' to file with all availble datasets
                 # then remove unwanted datasets from the file, and read it in with Read_Spectra_List = True
@@ -66,7 +61,8 @@ SVG = False # also save figures as an svg file, slow, but better for making figu
 Bootstrap = True #False #
 Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
 
-Dfrac = 0.9 #fraction deuterated in "fully" deuterated buffer
+Dfrac = 0.9 #fraction deuterated for "fully" deuterated exchange buffer 
+Nterm_subtract = 1 #number of N-term residues to remove from possible exchanging NH's (usually 1 or 2)
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
 setNoise = 200 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, ~0.5% for noise added
@@ -76,6 +72,7 @@ Binomial_dCorr = True #use the n=1 binomial fit to determine UN/TD centers for d
                     # this is essential if dirty spectra; otherwise using sum(mz*y)/sum(y) which will be wrong if there are contaminating peaks
 Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
 Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
+Nex_Max_Scale = 1.2
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 1.0 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
