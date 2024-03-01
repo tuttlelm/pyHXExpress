@@ -800,7 +800,7 @@ def init_params(n_curves,max_n_amides,max_y,seed=None):
 
     initial_estimate = [ log_scaler_guess ] + [ nex_guess ] * n_curves + mu_guess[0:n_curves] + frac_guess[0:n_curves]
     lower_bounds = [ 0.0 ] + [nex_low]* n_curves + [0.0]* n_curves*2 
-    upper_bounds = [ np.log10(max_y)+1, ] + [max_n_amides]* n_curves + [ 1.0 ] *n_curves + frac_uppers[0:n_curves]
+    upper_bounds = [ 1.0, ] + [max_n_amides]* n_curves + [ 1.0 ] *n_curves + frac_uppers[0:n_curves]
     bounds = ( lower_bounds, upper_bounds, )
 
     return initial_estimate, bounds
@@ -865,7 +865,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
         boot_residual = calc_rss(boot_y , datay)
         
         if ax != None: ax.plot( mz, boot_y*yscale, color = 'darkviolet', linestyle='solid', alpha=0.2 )
-        s,n,m,f = get_params(*rfit,norm=True,unpack=True)
+        s,n,m,f = get_params(*rfit,norm=True,unpack=True) #already did 10**s in rfit
         kcenter = [] #get centroids of each population
         for k in range( num_curves ):
             bfit_yk = s * f[k] * fitfunc( datax, n[k], m[k], ) * yscale
@@ -944,7 +944,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     date = now.strftime("%d%b%Y")
     
     os.makedirs(os.path.dirname(config.Output_DIR),exist_ok=True)
-    fout = open(os.path.join(config.Output_DIR,'output_v3allfracs_'+date+'.txt'),'w')
+    #fout = open(os.path.join(config.Output_DIR,'output_v3allfracs_'+date+'.txt'),'w')
     data_output_file_inprogress = os.path.join(config.Output_DIR,"data_fits_asrun_"+date+".csv")
 
     
@@ -1034,14 +1034,16 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             else: 
                 if update_deutdata:
                     deutdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
-        else: # Data_type == 2, already checked that it is 1 or 2
-            spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
-            csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
+        else: # Data_type == 2, already checked that it is 1 or 2            
             if config.Keep_Raw:
                 if update_deutdata:
+                    spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
+                    csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata, rawdata = read_specexport_data(csv_files,spec_path,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
             else: 
                 if update_deutdata:
+                    spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
+                    csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata = read_specexport_data(csv_files,spec_path,row,keep_raw=False,mod=mod_dic)
         
         # deutdata['data_id'] = index  #should be in read_ functions
@@ -1049,26 +1051,26 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         # update with user values ... 
         if not user_deutdata.empty:
-            userdeut = filter_df(user_deutdata,samples=sample,peptides=peptide,charge=charge,quiet=True)
+            userdeut = filter_df(user_deutdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=True)
             if not userdeut.empty:  # deutdata.loc[userdeut.index] = userdeut # 
                 if update_deutdata:
-                    update_deut_list = zip(*[userdeut[col] for col in ['sample','peptide_range','time','rep','charge']])
+                    update_deut_list = zip(*[userdeut[col] for col in ['data_id','sample','peptide_range','time','rep','charge']])
                     update_deut_list = list(dict.fromkeys(update_deut_list))
                     deut_filter_idx = []
-                    for ss,pp,tt,rr,zz in update_deut_list:
-                        spec = {'samples':ss,'peptide_ranges':pp,'timept':tt,'charge':zz,'rep':rr}
+                    for di,ss,pp,tt,rr,zz in update_deut_list:
+                        spec = {'data_ids':di,'samples':ss,'peptide_ranges':pp,'timept':tt,'charge':zz,'rep':rr}
                         deut_filter_idx += list(filter_df(deutdata,**spec).index)
                     deutdata = pd.concat([deutdata.drop(index=deut_filter_idx),userdeut],ignore_index=True)
                 else: deutdata = userdeut
         if not user_rawdata.empty:
-            userraw = filter_df(user_rawdata,samples=sample,peptides=peptide,charge=charge,quiet=True)
+            userraw = filter_df(user_rawdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=True)
             if not userraw.empty:  # deutdata.loc[userdeut.index] = userdeut # 
                 if update_deutdata:
-                    update_raw_list = zip(*[userraw[col] for col in ['sample','peptide_range','time','rep','charge']])
+                    update_raw_list = zip(*[userraw[col] for col in ['data_id','sample','peptide_range','time','rep','charge']])
                     update_raw_list = list(dict.fromkeys(update_raw_list))
                     raw_filter_idx = []
-                    for ss,pp,tt,rr,zz in update_raw_list:
-                        spec = {'samples':ss,'peptide_ranges':pp,'timept':tt,'charge':zz,'rep':rr}
+                    for di,ss,pp,tt,rr,zz in update_raw_list:
+                        spec = {'data_ids':di,'samples':ss,'peptide_ranges':pp,'timept':tt,'charge':zz,'rep':rr}
                         raw_filter_idx += list(filter_df(rawdata,**spec).index)
                     rawdata = pd.concat([rawdata.drop(index=raw_filter_idx),userraw],ignore_index=True)
                 else: rawdata = userraw
@@ -1296,7 +1298,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         print(f"attempting to fit more parameters than data points: time {timelabel} rep {j} N={n_curves} curves")
                         #should be able to exit at this point, haven't updated last fit parameters including p_err
                         break # exit the for n_curves loop
-                    
+                    #print("bounds",bounds)
                     try:
                         fit, covar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
@@ -1321,9 +1323,9 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     if n_curves == low_n:
                         best_fit = fit 
                         best_covar = covar 
-                        print( timelabel +' '+str(sample)+' '+peptide_range+' z'+str(int(charge))+' rep'+str(j)
-                                +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
-                                +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
+                        # print( timelabel +' '+str(sample)+' '+peptide_range+' z'+str(int(charge))+' rep'+str(j)
+                        #         +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
+                        #         +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
                         fitparamsdf['p-value'] = p_corr
                         fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
                         save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
@@ -1335,9 +1337,9 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         F = ( ( prev_rss - rss ) / (3)  ) / ( rss / ( n_bins + 1 - n_params ) )
                         p = 1.0 - stats.f.cdf( F, 3, n_bins + 1 - n_params )
                         p_corr = p * (n_curves-1)
-                        print( timelabel +' '+str(sample)+' '+peptide_range +' z'+str(int(charge))+' rep'+str(j)
-                              +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
-                              +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
+                        # print( timelabel +' '+str(sample)+' '+peptide_range +' z'+str(int(charge))+' rep'+str(j)
+                        #       +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
+                        #       +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
                         
                         fitparamsdf['p-value'] = p_corr
                         fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
@@ -1591,7 +1593,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         #     else: yerr_name = 'NoNoise_'
         # else: yerr_name = ''
         try:
-            figfile = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_IndFits_'+date
+            figfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_IndFits_'+date
             print("saving figure as ",figfile)
             fig.savefig(os.path.join(config.Output_DIR,figfile+'.pdf'),format='pdf',dpi=600)
             if config.SVG: fig.savefig(os.path.join(config.Output_DIR,figfile+'.svg'),format='svg')
@@ -1602,7 +1604,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         try:
             #fig2file = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_BootFits_'+yerr_name+date
-            fig2file = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_BootFits_'+date #details will be in separate file
+            fig2file = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_BootFits_'+date #details will be in separate file
             print("saving figure as ",fig2file)
             fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.pdf'),format='pdf',dpi=600)
             if config.SVG: fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.svg'),format='svg')
@@ -1612,7 +1614,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             print (f"Could not save: {fig2file} file is open") 
 
         try:
-            dfigfile = 'hxex_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_ndeutBoot_'+date
+            dfigfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_ndeutBoot_'+date
             print("saving figure as ",dfigfile)
             dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.pdf'),format='pdf',dpi=600)
             if config.SVG: dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.svg'),format='svg')
@@ -1640,7 +1642,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             print("Could not save deutdata and rawdata to file")
 
     plt.close("all")
-    fout.close()
+    #fout.close()
 
     return
 
