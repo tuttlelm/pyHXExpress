@@ -975,7 +975,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             config_df = pd.read_csv(config.Preset_Pops_File).drop('Index',axis=1)
             print("Using user specified number of populations when available")
             Preset_Pops = True
-            max_pops = config_df['high_pops'].max() #this is to determine columns in data_fit output
+            max_pops = config_df['max_pops'].max() #this is to determine columns in data_fit output
         except: 
             print("Preset_Pops_File does not exist or improperly formatted, using default range")
             Preset_Pops = False
