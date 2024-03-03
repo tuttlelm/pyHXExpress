@@ -152,7 +152,7 @@ def save_metadf(metadf,filename=None):
         saveto = os.path.join(config.Output_DIR,filename)
     else: 
         saveto = os.path.join(config.Output_DIR,'hdx_spectra_list_metadf_'+date+'.csv')
-    savedf.to_csv(saveto,index_label='Index')
+    savedf.to_csv(saveto,index_label='Index',mode='w')
 
 def read_metadf(filename):
     '''

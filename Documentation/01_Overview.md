@@ -25,6 +25,7 @@ A note on spectral quality: the best results will be obtained on clean data. Thi
 #### II. The Metadata 
 
 A metadata dataframe ('metadf') is used to control what peptide/charge/replicate data will be fit. This is a csv file that can be provided by the user or pyHXexpress can create it by inferring the information from the file names. 
+
 1. To generate the metadf file For HX-Express type data, the filenames must be of the following format: SAMPLE_START-END-PEPTIDE-zCHARGE-usertext.xlsx or .csv. SAMPLE: a sample identifier, START: starting residue number of the peptide, END: last residue number, PEPTIDE: the entire peptide single letter amino acid sequence, CHARGE: the charge state. 
 
 2. To generate the metadf file for HDExaminer exported spectra, the user need only include 'SAMPLE.fasta' files with the correct sequences (accounting for mutations) in the SpecExport directory where SAMPLE exactly matches the name of the sample subfolders in that directory. **It is highly recommended to remove any spaces in these file names. Underscores and dashes are your friends.
