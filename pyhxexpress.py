@@ -938,7 +938,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     '''
     global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata
     global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df, fitparams_all
-    global boot_centers #troubleshooting 
+    global boot_centers, reportdf #troubleshooting 
 
     now = datetime.now()
     date = now.strftime("%d%b%Y")
