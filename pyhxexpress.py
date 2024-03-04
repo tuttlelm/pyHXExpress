@@ -166,86 +166,85 @@ def read_metadf(filename):
         print("No file found for spectra list")
         return
 
-def get_metadf():
-    '''
-    if config.Read_Spectra_List: metadf = read_metadf(Metadf_File)
-    else: metadf = get_metadf()
-    '''
-    metadf = pd.DataFrame()
-    if config.Data_Type == 1:
-        if config.Test_Data: 
-            metadf = read_metadf(config.Metadf_File)
-        else:
-            hx_files = [ f for f in os.listdir(config.Data_DIR) if f[-5:]=='.xlsx'  ] 
-            if not config.process_ALL:
-                if 'all' not in config.User_mutants[0].lower():
-                    #available_mutants = set([um for hx in hx_files for um in User_mutants if um in hx])     
-                    hx_files = [hx for um in config.User_mutants for hx in hx_files if um == hx.split('-')[0].rsplit('_',1)[0]]
-                if 'all' not in config.User_peptides[0].lower():
-                    #available_charges = set([up for hx in hx_files for up in User_peptides if up in hx])
-                    hx_files = [hx for up in config.User_peptides for hx in hx_files if up in hx]
+def get_metadf():    
+    if config.Read_Spectra_List: 
+        metadf = read_metadf(config.Metadf_File)        
+    else: 
+        metadf = pd.DataFrame()
+        if config.Data_Type == 1:
+            if config.Test_Data: 
+                metadf = read_metadf(config.Metadf_File)
+            else:
+                hx_files = [ f for f in os.listdir(config.Data_DIR) if f[-5:]=='.xlsx'  ] 
+                if not config.process_ALL:
+                    if 'all' not in config.User_mutants[0].lower():
+                        #available_mutants = set([um for hx in hx_files for um in User_mutants if um in hx])     
+                        hx_files = [hx for um in config.User_mutants for hx in hx_files if um == hx.split('-')[0].rsplit('_',1)[0]]
+                    if 'all' not in config.User_peptides[0].lower():
+                        #available_charges = set([up for hx in hx_files for up in User_peptides if up in hx])
+                        hx_files = [hx for up in config.User_peptides for hx in hx_files if up in hx]
 
 
-            #HSPB1_B1B5_0001-0011-MTERRVPFSLL-z2-allspectra.xlsx
-            #metadf = pd.DataFrame() #dataframe to hold filenames and sample/peptide/charge info
-            for f in hx_files:
-                meta = get_hxexpress_meta(f)
-                metadf = metadf.append(meta,ignore_index=True)
+                #HSPB1_B1B5_0001-0011-MTERRVPFSLL-z2-allspectra.xlsx
+                #metadf = pd.DataFrame() #dataframe to hold filenames and sample/peptide/charge info
+                for f in hx_files:
+                    meta = get_hxexpress_meta(f)
+                    metadf = metadf.append(meta,ignore_index=True)
 
-    elif config.Data_Type == 2:
-        fasta_files = [ f for f in os.listdir(config.Data_DIR) if f[-6:]=='.fasta'  ]
-        if len(fasta_files)==0: print("no fasta files found")
-        mutants = [ff.split('.')[0] for ff in fasta_files]
-        mutant_dirs = [os.path.split(f)[-1] for f in os.scandir(os.path.join(config.Data_DIR)) if f.is_dir()]
-        mutants = [o for o in mutant_dirs if o in mutants]  #ignore any extra fasta files
+        elif config.Data_Type == 2:
+            fasta_files = [ f for f in os.listdir(config.Data_DIR) if f[-6:]=='.fasta'  ]
+            if len(fasta_files)==0: print("no fasta files found")
+            mutants = [ff.split('.')[0] for ff in fasta_files]
+            mutant_dirs = [os.path.split(f)[-1] for f in os.scandir(os.path.join(config.Data_DIR)) if f.is_dir()]
+            mutants = [o for o in mutant_dirs if o in mutants]  #ignore any extra fasta files
 
-        if (not config.process_ALL) and (config.User_mutants[0].lower() != 'all'): 
-            check = all(item in mutants for item in config.User_mutants)
-            if not check:             
-                missing = list(set(config.User_mutants)-set(mutants))
-                remaining = list(set(config.User_mutants)-set(missing))
-                print("missing fasta files for: ", *list(set(config.User_mutants)-set(mutants)))      
-                mutants = [o for o in config.User_mutants if o in remaining]
-                if len(mutants): print("only processing",*mutants)
-            else: mutants = config.User_mutants
+            if (not config.process_ALL) and (config.User_mutants[0].lower() != 'all'): 
+                check = all(item in mutants for item in config.User_mutants)
+                if not check:             
+                    missing = list(set(config.User_mutants)-set(mutants))
+                    remaining = list(set(config.User_mutants)-set(missing))
+                    print("missing fasta files for: ", *list(set(config.User_mutants)-set(mutants)))      
+                    mutants = [o for o in config.User_mutants if o in remaining]
+                    if len(mutants): print("only processing",*mutants)
+                else: mutants = config.User_mutants
 
-        smeta = {}
-        #metadf = pd.DataFrame()
-        for mutant in mutants:
-            peptide_dirs = [f.path for f in os.scandir(os.path.join(config.Data_DIR,mutant)) if f.is_dir()]
-            peptide_ids = [os.path.split(ff)[-1] for ff in peptide_dirs]  
-            peptide_ranges = [ff.rsplit('-',1)[0] for ff in peptide_ids]
-            if (not config.process_ALL) and (config.User_peptides[0].lower() != 'all'): 
-                check = all(item in peptide_ranges for item in config.User_peptides)
-                if not check:
-                    print("missing peptides for: ",mutant, *list(set(config.User_peptides)-set(peptide_ranges)))
-                    missing = list(set(config.User_peptides)-set(peptide_ranges))
-                    remaining = list(set(config.User_peptides)-set(missing))
-                    peptide_ranges = [o for o in config.User_peptides if o in remaining]
-                else: 
-                    peptide_ranges = config.User_peptides
-                peptide_dirs = list(filter(lambda x: any(userpep in x for userpep in config.User_peptides),peptide_dirs))
-            
-            fasta_sequence =  SeqIO.parse(open(os.path.join(config.Data_DIR,str(mutant)+'.fasta')),'fasta')
-            for fasta in fasta_sequence:
-                sequence = str(fasta.seq)
+            smeta = {}
+            #metadf = pd.DataFrame()
+            for mutant in mutants:
+                peptide_dirs = [f.path for f in os.scandir(os.path.join(config.Data_DIR,mutant)) if f.is_dir()]
+                peptide_ids = [os.path.split(ff)[-1] for ff in peptide_dirs]  
+                peptide_ranges = [ff.rsplit('-',1)[0] for ff in peptide_ids]
+                if (not config.process_ALL) and (config.User_peptides[0].lower() != 'all'): 
+                    check = all(item in peptide_ranges for item in config.User_peptides)
+                    if not check:
+                        print("missing peptides for: ",mutant, *list(set(config.User_peptides)-set(peptide_ranges)))
+                        missing = list(set(config.User_peptides)-set(peptide_ranges))
+                        remaining = list(set(config.User_peptides)-set(missing))
+                        peptide_ranges = [o for o in config.User_peptides if o in remaining]
+                    else: 
+                        peptide_ranges = config.User_peptides
+                    peptide_dirs = list(filter(lambda x: any(userpep in x for userpep in config.User_peptides),peptide_dirs))
+                
+                fasta_sequence =  SeqIO.parse(open(os.path.join(config.Data_DIR,str(mutant)+'.fasta')),'fasta')
+                for fasta in fasta_sequence:
+                    sequence = str(fasta.seq)
 
-            for spec_dir,peptide_range in zip(peptide_dirs,peptide_ranges):
-                csv_files = [ f for f in os.listdir(spec_dir) if f[-4:]=='.csv'  ]
-                charges = set([int(c[-5]) for c in csv_files if c[-5].isdigit() and c[-6]=='z'])
-                for charge in charges:
-                    smeta['file']=os.path.split(spec_dir)[1]
-                    smeta['sample']=os.path.split(os.path.split(spec_dir)[0])[1]
-                    smeta['charge']=float(charge)
-                    smeta['peptide_range']=peptide_range
-                    startseq = int(peptide_range.split('-')[0])
-                    endseq = int(peptide_range.split('-')[1])
-                    smeta['start_seq'] = startseq
-                    smeta['end_seq'] = endseq
-                    smeta['peptide'] = sequence[startseq-1:endseq]
-                    #metadf = metadf.append(smeta, ignore_index = True)   
-                    metadf = pd.concat([metadf,pd.DataFrame([smeta])],ignore_index = True)
-    else: print("Must specify Data_Type: 1 for HX-Express allspectra format or 2 for SpecExport")
+                for spec_dir,peptide_range in zip(peptide_dirs,peptide_ranges):
+                    csv_files = [ f for f in os.listdir(spec_dir) if f[-4:]=='.csv'  ]
+                    charges = set([int(c[-5]) for c in csv_files if c[-5].isdigit() and c[-6]=='z'])
+                    for charge in charges:
+                        smeta['file']=os.path.split(spec_dir)[1]
+                        smeta['sample']=os.path.split(os.path.split(spec_dir)[0])[1]
+                        smeta['charge']=float(charge)
+                        smeta['peptide_range']=peptide_range
+                        startseq = int(peptide_range.split('-')[0])
+                        endseq = int(peptide_range.split('-')[1])
+                        smeta['start_seq'] = startseq
+                        smeta['end_seq'] = endseq
+                        smeta['peptide'] = sequence[startseq-1:endseq]
+                        #metadf = metadf.append(smeta, ignore_index = True)   
+                        metadf = pd.concat([metadf,pd.DataFrame([smeta])],ignore_index = True)
+        else: print("Must specify Data_Type: 1 for HX-Express allspectra format or 2 for SpecExport")
     if metadf.empty: raise Exception("No data found. Check Data_Type specification and Data_DIR")
     else:
         metadf = metadf.sort_values(['peptide_range','sample','charge',],ignore_index=True) 
@@ -1509,16 +1508,16 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     if overlay_reps:
                         ax2[i,ncols-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
                     data_fit.loc[0,'centroid_'+str(k+1)]=kindcent
-                    data_fit.loc[0,'Dabs_'+str(k+1)]=bnm_avg[k] if config.Full_boot else deut_corr_k 
-                    data_fit.loc[0,'Dabs_std_'+str(k+1)]=bnm_err[k] if config.Full_boot else np.nan ##
-                    data_fit.loc[0,'pop_'+str(k+1)]= bfrac_avg[k] if config.Full_boot else frac
-                    data_fit.loc[0,'pop_std_'+str(k+1)]=bfrac_err[k] if config.Full_boot else frac_err
+                    data_fit.loc[0,'Dabs_'+str(k+1)]=bnm_avg[k] if config.Bootstrap else deut_corr_k 
+                    data_fit.loc[0,'Dabs_std_'+str(k+1)]=bnm_err[k] if config.Bootstrap else np.nan ##
+                    data_fit.loc[0,'pop_'+str(k+1)]= bfrac_avg[k] if config.Bootstrap else frac
+                    data_fit.loc[0,'pop_std_'+str(k+1)]=bfrac_err[k] if config.Bootstrap else frac_err
                     #data_fit.loc[0,'mu_'+str(k+1)]=mu  #don't include in fit report, keep with all params output
                     #data_fit.loc[0,'Nex_'+str(k+1)]=nex #don't include in fit report, keep with all params output
                     #data_fit.loc[0,'Nex_std_'+str(k+1)]=nex_err #don't include in fit report, keep with all params output
 
-                    nm_for_label = bnm_avg[k] if config.Full_boot else deut_corr_k
-                    frac_for_label = bfrac_avg[k] if config.Full_boot else frac 
+                    nm_for_label = bnm_avg[k] if config.Bootstrap else deut_corr_k
+                    frac_for_label = bfrac_avg[k] if config.Bootstrap else frac 
                     #print("nm:",bnm_avg[k],"deut_corr_k",deut_corr_k)
                     plot_label = ('pop'+str(k+1)+' = '+format(frac_for_label,'.2f')#+' ± '+format(frac_err,'.2f') 
                                         +'\nDabs_'+str(k+1)+' = '+format(nm_for_label,'.1f')#+' ± '+format(nex_err,'.2f')
