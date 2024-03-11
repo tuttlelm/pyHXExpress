@@ -31,6 +31,8 @@ from Bio import SeqIO
 
 import config
 
+rng=np.random.default_rng(seed=config.Random_Seed)
+
 now = datetime.now()
 date = now.strftime("%d%b%Y")
 
@@ -80,10 +82,10 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
         file needs to be in same file location as the current working directory set in the notebook (this is the default save location)
     '''
 
-    all_params = ['Allow_Overwrite', 'Binomial_dCorr', 'Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Dfrac', 'Env_limit', 'Env_threshold', 
-                  'Full_boot', 'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 'Ncurve_p_accept', 'Nex_Max_Scale'
+    all_params = ['Allow_Overwrite', 'BestFit_of_X', 'Binomial_dCorr', 'Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Dfrac', 'Env_limit', 'Env_threshold', 
+                  'Full_boot', 'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 'Ncurve_p_accept', 'Nex_Max_Scale',
                   'Nterm_subtract', 'Output_DIR', 'Overlay_replicates', 'Peak_Resolution', 'Pop_Thresh', 'Preset_Pops', 'Preset_Pops_File', 'process_ALL', 
-                  'Random_Seed', 'Read_Spectra_List', 'Save_Spectra', 'Scale_Y_Values', 'setNoise', 'SVG', 'Test_Data', 'User_mutants', 'User_peptides', 
+                  'Random_Seed', 'Read_Spectra_List', 'Residual_Cutoff','Save_Spectra', 'Scale_Y_Values', 'setNoise', 'SVG', 'Test_Data', 'User_mutants', 'User_peptides', 
                   'WRITE_PARAMS', 'Y_ERR', 'Zero_Filling']
 
     filename = "hdxms_params_"+config.date+".py"
@@ -553,8 +555,16 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     if mod_dict:
         undeut_mz += mass.calculate_mass(composition=mod_dict,charge=charge)
     #print("undeut_mod",undeut_mz)
-    n_deut = np.arange(n_amides+1)
-    pred_mzs = undeut_mz + (n_deut*1.006227)/charge
+    #n_deut = np.arange(n_amides+1) #ExMS instead
+    #pred_mzs = undeut_mz + (n_deut*1.006277)/charge #ExMS instead
+    # Use ExMS method of expected mz values https://pubs.acs.org/doi/10.1007/s13361-011-0236-3
+    delta_m = [1.003355, 1.003355, 1.004816, 1.004816, 1.006277] #dmC, dmC, dmHCavg, dmHCavg, dmH ...
+    dmz = [0.0]
+    for nd in range(0,n_amides):
+        dm = delta_m[nd] if nd < 5 else delta_m[-1]
+        dmz += [dmz[nd] + dm/charge]
+    pred_mzs = np.array(dmz) + undeut_mz
+
     mz_mid = pred_mzs.mean() 
 
      #attempt to set threshold based on user noise value 
@@ -785,22 +795,24 @@ def init_params(n_curves,max_n_amides,max_y,seed=None):
     '''
     generate intial guess parameters for the fits 
     '''
-    rng=np.random.default_rng(seed=seed)
-    random.seed(seed)
     
+    init_rng = np.random.default_rng(seed=seed)
+
     log_scaler_guess = 0.0  
-    nex_guess = max_n_amides/2.0*random.uniform(0.7,1.0) #was same for all at max/2 in < ver3.0
+    nex_guess = list(max_n_amides*init_rng.random(n_curves)) #was same for all at max/2 in < ver3.0
     nex_low = 0.0 
-    sampled = rng.random(n_curves*2) #array for both mus and fracs
-    mu_guess =  list(sampled[0:n_curves]) #[0.2, 0.5, 0.1]
+    sampled = init_rng.random(n_curves*2) #array for both mus and fracs
+    mu_guess =  list(sampled[0:n_curves]) #[0.9, 0.9, 0.9] #
     frac_guess = sampled[-n_curves:]#[0.70, 0.25, 0.05] #allfracs
     frac_guess = list(frac_guess/np.sum(frac_guess))
     frac_uppers = [1.0]*n_curves
 
-    initial_estimate = [ log_scaler_guess ] + [ nex_guess ] * n_curves + mu_guess[0:n_curves] + frac_guess[0:n_curves]
+    initial_estimate = [ log_scaler_guess ] + nex_guess + mu_guess[0:n_curves] + frac_guess[0:n_curves]
     lower_bounds = [ 0.0 ] + [nex_low]* n_curves + [0.0]* n_curves*2 
     upper_bounds = [ 1.0, ] + [max_n_amides]* n_curves + [ 1.0 ] *n_curves + frac_uppers[0:n_curves]
     bounds = ( lower_bounds, upper_bounds, )
+
+    #print("intial seed, initial estimate",seed,initial_estimate)
 
     return initial_estimate, bounds
 
@@ -811,6 +823,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
     '''
     #p0_boot is a list of all p0 initial parameters with nboot entries
     #if ax != None: ax.plot( mz, datay, color = 'cyan', linestyle='solid',label='boot_datay' )
+
     p0 = p0_boot[0]
     num_curves = int((len(p0)-1)/3)
     
@@ -833,7 +846,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
     boot_residuals = []
     for i in range(nboot):
         p0 = p0_boot[i]
-        randomDelta = np.random.normal(0., sigma_err_total, len(datay))
+        randomDelta = rng.normal(0., sigma_err_total, len(datay))
         randomDelta = [0 if a==0 else b for a,b in zip(datay,randomDelta)] #don't change y if y=0
         randomdataY = datay + randomDelta 
         #if datapoint is zero, leave as zero and don't let value go negative
@@ -1291,24 +1304,44 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 best_n_curves = low_n
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
                     print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,"          ",end='\r',flush=True) 
+                    
                     initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed)
                     if (len(initial_estimate) > n_bins): 
                         print(f"attempting to fit more parameters than data points: time {timelabel} rep {j} N={n_curves} curves")
                         #should be able to exit at this point, haven't updated last fit parameters including p_err
                         break # exit the for n_curves loop
                     #print("bounds",bounds)
-                    try:
+                    try:                        
                         fit, covar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
                                                 bounds = bounds   )
+                        fit_y = n_fitfunc( n_bins, *fit )
+                        rss = calc_rss( y_norm, fit_y, )
+                        bestifit = 1
+                        #print("trying fit 1 of ",config.BestFit_of_X," fits:",initial_estimate,rss)
+                        for ifits in range(2,config.BestFit_of_X+1):
+                            
+                            initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed+ifits)
+                            
+                            newfit, newcovar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
+                                                bounds = bounds   )
+                            new_fit_y = n_fitfunc( n_bins, *newfit )
+                            new_rss = calc_rss( y_norm, new_fit_y, )
+                            #print("trying",ifits,"of ",config.BestFit_of_X," fits:",initial_estimate,new_rss)
+                            if new_rss < rss:
+                                bestifit = ifits 
+                                rss = new_rss
+                                fit = newfit
+                                fit_y = new_fit_y
+                                covar = newcovar
                     except RuntimeError:
                         print (f"failed to fit: time {timelabel} rep {j} N={n_curves} curves")
                         break
-                    fit_y = n_fitfunc( n_bins, *fit )
-  
+                    
+                    #print("using bestifit number ",bestifit)
+                    
                     # Perform statistical test, keep the best model
                     n_params = len( initial_estimate )
-                    rss = calc_rss( y_norm, fit_y, )
-
+                  
                     ###IN PROGRESS - record all initial fit params
                     fitparamsdf[sample_id_cols] = data_fit[sample_id_cols] 
                     fitparamsdf['ncurves'] = n_curves
@@ -1335,9 +1368,6 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         F = ( ( prev_rss - rss ) / (3)  ) / ( rss / ( n_bins + 1 - n_params ) )
                         p = 1.0 - stats.f.cdf( F, 3, n_bins + 1 - n_params )
                         p_corr = p * (n_curves-1) ### is this correct?
-                        # print( timelabel +' '+str(sample)+' '+peptide_range +' z'+str(int(charge))+' rep'+str(j)
-                        #       +' N = ' + str(n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')
-                        #       +' rss = '+format(rss,'.3e')+' '+np.array_str(np.array(fit),precision=5).replace('\n',''),file=fout)
                         
                         fitparamsdf['p-value'] = p_corr
                         fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
@@ -1358,6 +1388,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     best_fit = fit            
                     best_covar = covar 
                     best_n_curves = n_curves
+                    if rss/n_bins < config.Residual_Cutoff:
+                        break # if the residual sum squared is sufficiently small, use that number of curves 
 
                        
                 #end n_curves for loop
@@ -1372,9 +1404,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                                                     ### Artifically large: essentially swapping between populations during curve_fit
                 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html see pcov
                 # To compute one standard deviation errors on the parameters, use perr = np.sqrt(np.diag(pcov)) //when sigma=None
-
-                #print( timelabel +' '+str(samples[j-1]) +' N = ' + str(best_n_curves).ljust(5) + 'p = ' + format( p_corr, '.3e')+str(best_fit),file=fout)
-                
+               
                 # do the bootstrap fits 
                 if config.Bootstrap:            
                     p0_boot=[]
@@ -1789,7 +1819,7 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                 
         lowermz = min(mz)
         uppermz = max(mz)
-
+        
         if len(deut_spectra)>1: pl = (',').join(map(str,[s,p,t,int(r),int(z)])) 
         else: pl='data '+str(t)+'s, rep '+str(r)
         ax.plot(mz, y, 'ro',  markersize='4',label=pl ,zorder=1)
