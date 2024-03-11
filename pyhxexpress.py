@@ -1536,7 +1536,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     deut_corr_k = (kindcent - centroidUD)*charge * 1/d_corr
                     ax2[i,j-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
                     #dax.errorbar(timept,bnm_avg[n],yerr=bnm_err[n],alpha=1.0,color=mpl_colors[j-1])
-                    dax.scatter(timept,deut_corr_k,marker='x',alpha=1.0,color=mpl_colors_dark[j-1])
+                    if config.Bootstrap == False:
+                        dax.scatter(timept,deut_corr_k,marker='x',alpha=1.0,color=mpl_colors_dark[j-1])
                     if overlay_reps:
                         ax2[i,ncols-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
                     data_fit.loc[0,'centroid_'+str(k+1)]=kindcent
@@ -1589,14 +1590,17 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 
                 centroid_j_corr = (centroid_j - centroidUD) * charge * 1/d_corr # = Dcorr = (m - m0)/(m100-m0)
                 ax2[i,j-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=1.0,c='darkorange',marker='*',zorder=0)
+                ax2[i,j-1].vlines(ymin=(0.0,0.0) ,ymax=(1.0,1.0) ,x=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
                 ax2[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
                 ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
-                ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                #ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                ax2[i,j-1].set(xlim=(-3,(uppermz-lowermz+9)))
                 ax2[i,j-1].set_xlabel("Relative Deuterium Level (Da)") #N*mu")
                 ax2[i,j-1].set_ylabel("population") 
                 if overlay_reps:
                     ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
-                    ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                    #ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                    ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
                     ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
                     ax2[i,ncols-1].set_title(label='Replicates Overlay')
                     ax2[i,ncols-1].set_xlabel("Relative Deuterium Level (Da)")
@@ -1612,6 +1616,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             dax.set_xlabel("Test Experiment")
             dax.legend(handles=dax_legend_elements,loc='upper left')
         else:
+            dax.hlines(xmin=(-1.0,-1.0) ,xmax=(1e6,1e6) ,y=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
             dax.set_xlabel("Time, s")
             if dax_log==True: dax.set_xscale('log')
             dax.legend(handles=dax_legend_elements[0:max_time_reps],loc='lower right')
