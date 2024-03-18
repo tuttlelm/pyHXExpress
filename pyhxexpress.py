@@ -18,6 +18,7 @@ import importlib
 import tensorflow as tf
 from keras.models import load_model
 from scipy.optimize import curve_fit
+from scipy.optimize import differential_evolution
 #from scipy.stats import rankdata, skew
 #from scipy.special import comb
 from math import gamma, lgamma, exp
@@ -82,8 +83,8 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
         file needs to be in same file location as the current working directory set in the notebook (this is the default save location)
     '''
 
-    all_params = ['Allow_Overwrite', 'BestFit_of_X', 'Binomial_dCorr', 'Boot_Seed', 'Bootstrap', 'Data_DIR', 'Data_Type', 'Dfrac', 'Env_limit', 'Env_threshold', 
-                  'Full_boot', 'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 'Ncurve_p_accept', 'Nex_Max_Scale',
+    all_params = ['Allow_Overwrite', 'BestFit_of_X', 'Binomial_dCorr', 'Data_DIR', 'Data_Type', 'Dfrac', 'Env_limit', 'Env_threshold', 'FullDeut_Time',
+                  'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 'Ncurve_p_accept', 'Nex_Max_Scale',
                   'Nterm_subtract', 'Output_DIR', 'Overlay_replicates', 'Peak_Resolution', 'Pop_Thresh', 'Preset_Pops', 'Preset_Pops_File', 'process_ALL', 
                   'Random_Seed', 'Read_Spectra_List', 'Residual_Cutoff','Save_Spectra', 'Scale_Y_Values', 'setNoise', 'SVG', 'Test_Data', 'User_mutants', 'User_peptides', 
                   'WRITE_PARAMS', 'Y_ERR', 'Zero_Filling']
@@ -301,7 +302,7 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         if 'data_id' in filtered.columns:
             filtered = filtered[filtered['data_id'].isin(makelist(data_ids))]
         else: index = data_ids
-    if not filtered.empty and index:
+    if not filtered.empty and (index or index == 0):
         filtered = filtered[filtered.index.isin(makelist(index))]
     
     if not filtered.empty and (timept or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
@@ -377,7 +378,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
     for i,dtime in enumerate(times):
         rep = 1     
         if dtime[0:6] == 'undeut': delay = 0.0 
-        elif dtime[0:2] == 'TD': delay = 1e6
+        elif dtime[0:2] == 'TD': delay = config.FullDeut_Time #1e6
         else:
             tp = float(dtime.split(' ')[0].split('.')[0])
             tunit = dtime.split(' ')[-1]
@@ -454,7 +455,7 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw,mod_dict={}):
         # print(fileinfo, len(fileinfo))
         rep = float(fileinfo[-2])
         if fileinfo[0] == 'Non': time = 0.0 
-        elif fileinfo[0] == 'Full': time = 1e6
+        elif fileinfo[0] == 'Full': time = config.FullDeut_Time #1e6
         else: time = float(fileinfo[0][:-1]) * np.power(60.0,'smh'.find(fileinfo[0][-1]))
         raw = pd.read_csv( os.path.join(spec_path,f),delimiter=",",header=None, names=["mz","Intensity"]).dropna()
         raw = raw.sort_values('mz').reset_index()
@@ -548,8 +549,10 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     find the peaks at the expected m/z values (+/- resolution in ppm)
     '''
     padding = config.Zero_Filling 
-    na_buffer = len(get_na_isotope(peptide,charge,mod_dict=mod_dict))//2
-    n_amides = count_amides(peptide,count_sc=0.0) + na_buffer + padding #include count from Isotopic Envelope
+    min_pts = config.Max_Pops*3+2 #minimum number of datapoints necessary for max pop fit
+    na_buffer = len(get_na_isotope(peptide,charge,mod_dict=mod_dict))//2   
+    n_amides = max(count_amides(peptide,count_sc=0.0),min_pts) + na_buffer + padding #include count from Isotopic Envelope
+
     undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge)
     #print("undeut",undeut_mz)
     if mod_dict:
@@ -606,7 +609,8 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         #     zeroes += 1
         peak = pd.DataFrame({'mz':[pred_mz],'Intensity':[intensity],'n_deut':[i]})
         peaks.append( peak )
-        if zeroes >= padding  : break
+        if (zeroes >= padding) and (i >= min_pts): 
+            break #if we have enough zeroes and enough points, we're done peak_picking
     #print(n_amides, zeroes, mz_mid)
     peaks = pd.concat(peaks,ignore_index=True)
 
@@ -725,7 +729,7 @@ def n_binomials( bins, *params ): #allfracsversion
     '''
     basic binomial for n populations
     '''
-    # params takes the form [scaler, n_1, n_2, mu_1, ..., mu_n, frac_1, ..., frac_n] 
+    # params takes the form [scaler, n_1, ..., n_n, mu_1, ..., mu_n, frac_1, ..., frac_n] 
     n_curves = int( (len(params)+1) / 3.0 )
     log_scaler = params[0]
     n_array=np.array(params[1:n_curves+1])
@@ -816,8 +820,18 @@ def init_params(n_curves,max_n_amides,max_y,seed=None):
 
     return initial_estimate, bounds
 
+def minimize_func(params, *data):
+    '''
+    residual sum squared to be minimized using scipy.optimize.differential_evolution
+    '''
+    bins,y = data
+    result = np.sum( (n_fitfunc(bins,*params)-y)**2 )
+
+    return result #**0.5
+
+
 def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=0.0,nboot=100,
-                  ax=None,full=False,yscale=1.0):
+                  ax=None,yscale=1.0):
     '''
     perform a bootstrap type routine, nboot independent fits of the data + noise
     '''
@@ -856,7 +870,8 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
                             print(f"attempting to fit more parameters than data points in bootstrap")
                             #should be able to exit at this point, haven't updated last fit parameters including p_err
                             break # exit the for n_curves loop
-        try:             
+        try:
+            #print(len(p0),len(bounds[0]),len(bounds[1]))
             randomfit, randomcov = curve_fit( n_fitfunc, datax, randomdataY, p0, maxfev=int(1e6), 
                                     bounds = bounds   )
         except RuntimeError:
@@ -889,21 +904,21 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
         boot_residuals.append(boot_residual/datax) #normalize by number of bins
     #print("boot_residuals:",len(boot_residuals),boot_residuals)
     ps = np.array(ps)
-    mean_pfit = np.mean(ps,axis=0)
+    # mean_pfit = np.mean(ps,axis=0)
 
     # You can choose the confidence interval that you want for your
     # parameter estimates: 
     Nsigma = 1. # 1sigma corresponds to 68.3% confidence interval
                 # 2sigma corresponds to 95.44% confidence interval
     if ps.ndim == 2: ps[:,0] = np.log10(ps[:,0])
-    err_pfit = Nsigma * np.std(ps,axis=0)
+    # err_pfit = Nsigma * np.std(ps,axis=0)
 
-    mean_pfit[0] = np.log10(mean_pfit[0])
+    # mean_pfit[0] = np.log10(mean_pfit[0])
 
-    pfit_bootstrap = mean_pfit
-    perr_bootstrap = err_pfit
-    if config.Full_boot: return ps, boot_residuals, np.array(centers) #return all the bootstrap fits 
-    else: return pfit_bootstrap, perr_bootstrap, np.array(centers)
+    # pfit_bootstrap = mean_pfit
+    # perr_bootstrap = err_pfit
+    return ps, boot_residuals, np.array(centers) #return all the bootstrap fits 
+    #return pfit_bootstrap, perr_bootstrap, np.array(centers)
 
 def get_TDenv(datafits,mod_dict={}):
    '''
@@ -949,8 +964,18 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     or to update a subset of deutdata (full set determined from metadf)
     user_allrawdata: user specified raw data instead of that found at filename
     '''
+    
+    GP = config.Generate_Plots
     global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata, reportdf
     global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df, fitparams_all
+
+    def MinimizeStopper(xk=None,convergence=None):
+        '''
+        callback function to stop scipy.optimize.differential_evolution function
+        when the minimize_func value is below a threshold
+        use with config.DiffEvo_kwargs = {'callback':MinimizeStopper,'polish':True,'maxiter':100}
+        '''
+        return minimize_func(xk,*args) < config.DiffEvo_threshold
 
     now = datetime.now()
     date = now.strftime("%d%b%Y")
@@ -987,7 +1012,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             config_df = pd.read_csv(config.Preset_Pops_File).drop('Index',axis=1)
             print("Using user specified number of populations when available")
             Preset_Pops = True
-            max_pops = config_df['max_pops'].max() #this is to determine columns in data_fit output
+            max_pops = config_df['max_pops'].max() #this is to determine columns in data_fit output            
         except: 
             print("Preset_Pops_File does not exist or improperly formatted, using default range")
             Preset_Pops = False
@@ -1001,7 +1026,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     ## generalize to preset column headers corresponding to max_pops
     ## Columns may change still depending on X_features used for pops prediction
     data_fit_columns = [ 'data_id','sample', 'peptide', 'peptide_range','start_seq','end_seq','charge', 'time','time_idx', 'rep', 
-                        'centroid', 'env_width', 'env_symm', 'max_namides','fit_pops','p-value']
+                        'centroid', 'env_width', 'env_symm', 'max_namides','UN_TD_corr','fit_pops','p-value']
     for imp in range(1,max_pops+1):
         data_fit_columns += ['centroid_'+str(imp), 'Dabs_'+str(imp),'Dabs_std_'+str(imp),'pop_'+str(imp), 'pop_std_'+str(imp), ]
     #                         'mu_'+str(imp), 'Nex_'+str(imp), 'Nex_std_'+str(imp)]
@@ -1103,15 +1128,16 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         max_time_reps = int(sorted(set(deutdata.rep))[-1])
         Current_Isotope= get_na_isotope(peptide,charge,mod_dict=mod_dic)
 
-        dax_legend_elements = []
-        for irep in range(max_time_reps):
-            dax_legend_elements += [ mlines.Line2D([0],[0], color='w',markerfacecolor = mpl_colors[irep],
-                                                marker='o',label="rep"+str(irep+1),markersize=10) ]
-        if config.Test_Data:
-            dax_legend_elements = [ mlines.Line2D([0],[0], color='w',markerfacecolor = mpl_colors[0],
-                                                marker='v',label="Fit Data",markersize=10),
-                                    mlines.Line2D([0],[0], color='w',markerfacecolor = None,markeredgecolor='darkred',
-                                                marker='o',label="Solution",markersize=10) ]
+        if GP:
+            dax_legend_elements = []
+            for irep in range(max_time_reps):
+                dax_legend_elements += [ mlines.Line2D([0],[0], color='w',markerfacecolor = mpl_colors[irep],
+                                                    marker='o',label="rep"+str(irep+1),markersize=10) ]
+            if config.Test_Data:
+                dax_legend_elements = [ mlines.Line2D([0],[0], color='w',markerfacecolor = mpl_colors[0],
+                                                    marker='v',label="Fit Data",markersize=10),
+                                        mlines.Line2D([0],[0], color='w',markerfacecolor = None,markeredgecolor='darkred',
+                                                    marker='o',label="Solution",markersize=10) ]
         # print("\nDataset",dataset_count,"of",len(metadf))
         # print("Performing fits for "+sample+" "+peptide_range+": "+peptide+" z="+str(int(charge)))
         #print(n_time_points, max_time_reps) 
@@ -1122,11 +1148,12 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             ncols = max_time_reps + 1
         else: ncols = max_time_reps
         
-        #figsize is width, height
-        fig, ax = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=1,clear=True)
-        fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=2,clear=True)
-        if config.Test_Data: dfig,dax=plt.subplots(figsize=(nrows/3+9,6),num=3,clear=True) # numD vs time plot
-        else: dfig,dax=plt.subplots(figsize=(9,6),num=3,clear=True)
+        if GP:
+            #figsize is width, height
+            fig, ax = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=1,clear=True)
+            fig2, ax2 = plt.subplots(figsize=(ncols*5+2, nrows*5), ncols=ncols, nrows = nrows, squeeze=False,num=2,clear=True)
+            if config.Test_Data: dfig,dax=plt.subplots(figsize=(nrows/3+9,6),num=3,clear=True) # numD vs time plot
+            else: dfig,dax=plt.subplots(figsize=(9,6),num=3,clear=True)
 
         #time points are rows i, reps are columns j
         
@@ -1145,7 +1172,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         Noise = 0.0
         d_corr = 1.0        
 
-        if all(tp in time_points for tp in [0,1e6]):
+        if all(tp in time_points for tp in [0,config.FullDeut_Time]): #[0,1e6]
             time_reps = deutdata.rep[(deutdata.time==0.0)].unique().astype('int')
             n_time_reps = len(time_reps)
             centroidUD_all = []
@@ -1173,11 +1200,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             centroidUD = np.mean(centroidUD_all)         
             centroidUD_err = np.std(centroidUD_all)
 
-            time_reps = deutdata.rep[(deutdata.time==1e6)].unique().astype('int')
+            time_reps = deutdata.rep[(deutdata.time==config.FullDeut_Time)].unique().astype('int')
             n_time_reps = len(time_reps)
             centroidTD_all = []
             for r in time_reps:
-                focal_data = deutdata.copy()[(deutdata.time==1e6) & (deutdata.rep==r)]
+                focal_data = deutdata.copy()[(deutdata.time==config.FullDeut_Time) & (deutdata.rep==r)]
                 mz=np.array(focal_data.mz.copy())
                 y=np.array(focal_data.Intensity.copy())
                 Noise += max(y)/n_time_reps
@@ -1215,6 +1242,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             centroidTD = centroidUD + n_amides*config.Dfrac/charge
             d_corr = (charge*(centroidTD - centroidUD)/n_amides) # = config.Dfrac #units mass per amide
 
+        
         #print ("centroids and delta mass:",centroidUD, centroidTD,(centroidTD-centroidUD)*charge,"charge, amides, dcorr",charge,n_amides,d_corr)
 
         if config.setNoise: Noise = config.setNoise  
@@ -1222,7 +1250,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         for i, ti in enumerate(time_indexes): #range(0,n_time_points): 
             n_time_rep = int(max(deutdata.rep[(deutdata.time_idx==ti)]))
             timept = int(max(deutdata.time[(deutdata.time_idx==ti)]))
-            if timept == int(1e6): 
+            if timept == int(config.FullDeut_Time): 
                 timelabel = 'FullDeut'
             elif timept == 0: timelabel = 'UnDeut'
             else: timelabel = str(timept)+'s'
@@ -1274,6 +1302,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 data_fit.loc[0,'time_idx'] = ti
                 data_fit.loc[0,'rep'] = j
                 data_fit.loc[0,'centroid'] = centroid_j
+                data_fit.loc[0,'UN_TD_corr'] = d_corr 
                 data_fit.loc[0,'sample'] = sample
                 data_fit.loc[0,'peptide'] = peptide
                 data_fit.loc[0,'peptide_range'] = peptide_range
@@ -1293,8 +1322,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     try:
                         fixed_pop = filter_df(config_df,samples=sample,peptides=peptide,charge=charge,rep=j,timept=timept,quiet=True)#['min/max_pops'][0]
                         low_n = int(fixed_pop['min_pops'].values[0])
-                        high_n  = int(fixed_pop['max_pops'].values[0])
-                        low_n = high_n
+                        high_n  = int(fixed_pop['max_pops'].values[0])                        
                         #print("Number of fit populations is fixed to",high_n)
                     except: 
                         #print("Failed to set the fixed population. Using,",low_n,"to",high_n,"populations")
@@ -1312,27 +1340,39 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         break # exit the for n_curves loop
                     #print("bounds",bounds)
                     try:                        
-                        fit, covar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
-                                                bounds = bounds   )
-                        fit_y = n_fitfunc( n_bins, *fit )
-                        rss = calc_rss( y_norm, fit_y, )
-                        bestifit = 1
-                        #print("trying fit 1 of ",config.BestFit_of_X," fits:",initial_estimate,rss)
-                        for ifits in range(2,config.BestFit_of_X+1):
-                            
-                            initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed+ifits)
-                            
-                            newfit, newcovar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
-                                                bounds = bounds   )
-                            new_fit_y = n_fitfunc( n_bins, *newfit )
-                            new_rss = calc_rss( y_norm, new_fit_y, )
-                            #print("trying",ifits,"of ",config.BestFit_of_X," fits:",initial_estimate,new_rss)
-                            if new_rss < rss:
-                                bestifit = ifits 
-                                rss = new_rss
-                                fit = newfit
-                                fit_y = new_fit_y
-                                covar = newcovar
+                        if config.Use_DiffEvo == True:
+                            de_bounds = list(zip(bounds[0],bounds[1]))
+                            args = (n_bins,y_norm)
+                            config.DiffEvo_kwargs.update({'callback':MinimizeStopper,'init':'sobol'})
+                            result = differential_evolution(minimize_func, de_bounds, args=args,**config.DiffEvo_kwargs)
+                            fit =  get_params(*result.x,sort=True,norm=True,unpack=False)
+                            #print(fit)
+                            covar = np.zeros_like(fit)
+                            fit_y = n_fitfunc( n_bins, *fit )
+                            rss = calc_rss( y_norm, fit_y, )
+                        else:
+                            fit, covar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
+                                                    bounds = bounds   )
+                            fit_y = n_fitfunc( n_bins, *fit )
+                            rss = calc_rss( y_norm, fit_y, )
+                            #bestifit = 1
+                            #print("trying fit 1 of ",config.BestFit_of_X," fits:",initial_estimate,rss)
+                            for ifits in range(2,config.BestFit_of_X+1):
+                                if config.Random_Seed: seed = config.Random_Seed+ifits
+                                else: seed = None
+                                initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=seed)
+                                
+                                newfit, newcovar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
+                                                    bounds = bounds   )
+                                new_fit_y = n_fitfunc( n_bins, *newfit )
+                                new_rss = calc_rss( y_norm, new_fit_y, )
+                                #print("trying",ifits,"of ",config.BestFit_of_X," fits:",initial_estimate,new_rss)
+                                if new_rss < rss:
+                                    #bestifit = ifits 
+                                    rss = new_rss
+                                    fit = newfit
+                                    fit_y = new_fit_y
+                                    covar = newcovar
                     except RuntimeError:
                         print (f"failed to fit: time {timelabel} rep {j} N={n_curves} curves")
                         break
@@ -1367,7 +1407,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         #                      xnbinsx + x1x - xnparamsx + 3 - xnbinsx - x1x + xnparamsx  = 3 (1 x frac, mu, nex for each additional curve)
                         F = ( ( prev_rss - rss ) / (3)  ) / ( rss / ( n_bins + 1 - n_params ) )
                         p = 1.0 - stats.f.cdf( F, 3, n_bins + 1 - n_params )
-                        p_corr = p * (n_curves-1) ### is this correct?
+                        p_corr = p * (n_curves-1) ### is this correct? this small scaling doesn't really affect the selection
                         
                         fitparamsdf['p-value'] = p_corr
                         fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
@@ -1390,79 +1430,86 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     best_n_curves = n_curves
                     if rss/n_bins < config.Residual_Cutoff:
                         break # if the residual sum squared is sufficiently small, use that number of curves 
-
-                       
+                      
                 #end n_curves for loop
 
                 data_fit.loc[0,'fit_pops'] = best_n_curves
                 data_fit.loc[0,'p-value'] = p_corr
                 fit_y = n_fitfunc( n_bins, *best_fit )
-                fstdev = np.sqrt(np.diag(best_covar)) ### this error is not realistic
+                fstdev = np.sqrt(np.diag(best_covar)) ### this error is not realistic and can be over and underestimate of error
                                                     ### Artifically small: fit can be very well converged but still miss the mark
-                                                    ### since measurement contains error and fit is assuming perfect
-                                                    ### this is why adding bootstrap noise better samples around 'solution'
+                                                    ### since measurement contains error and fit is assuming perfect data
+                                                    ### this is why adding bootstrap noise better samples around the 'solution'
                                                     ### Artifically large: essentially swapping between populations during curve_fit
                 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.curve_fit.html see pcov
                 # To compute one standard deviation errors on the parameters, use perr = np.sqrt(np.diag(pcov)) //when sigma=None
                
+
                 # do the bootstrap fits 
-                if config.Bootstrap:            
+                if config.Nboot:            
                     p0_boot=[]
                     for boot in range(config.Nboot): #send different p0 for each Bootstrap iteration
-                        if config.Boot_Seed: bseed = boot+config.Random_Seed+1
-                        else: bseed = config.Random_Seed
+                        if config.Random_Seed: bseed = boot+config.Random_Seed+1
+                        else: bseed = None
                         p0, bbounds = init_params(best_n_curves,max_n_amides,max_y,seed=bseed) #best_n_curves
+                        # if config.Use_DiffEvo == True: p0 = best_fit #TODO want to bias the good starting point, but need to randomize still
                         p0_boot.append(p0)
                     #p0_boot, bbounds = init_params(best_n_curves,n_amides,max_y,seed=config.Random_Seed)
-                    #rss = 0.0 #calc_rss( y_norm, fit_y, ) #this doesn't seem appropriate for binom fits         
+                    #rss = 0.0 #calc_rss( y_norm, fit_y, ) #this doesn't seem appropriate for binom fits
+                    if GP == False: boot_ax = None
+                    else: boot_ax = ax[i,j-1]
                     pfit, boot_rss, boot_centers = fit_bootstrap(p0_boot,bbounds,n_bins,y_norm,sigma_res=Noise/ynorm_factor, 
-                                                nboot=config.Nboot,ax=ax[i,j-1],full=config.Full_boot,yscale=scale_y)
+                                                nboot=config.Nboot,ax=boot_ax,yscale=scale_y)
                     #pfit = get_params(*pfit,sort=False,norm=True,unpack=False)
                     
-                    # plot mus vs fracs for each dataset if config.Full_boot=True
-                    if config.Full_boot:
-                        nm_alpha = [0.6]*int(config.Nboot) #default values if not scaling
-                        nm_marker = [50.0]*int(config.Nboot) #default values if not scaling
-                        p_array=np.array(pfit)
-                        ns_array = p_array[:,1:best_n_curves+1]
-                        mus_array = p_array[:,best_n_curves+1:best_n_curves*2+1]                
-                        fracs_array = p_array[:,-best_n_curves:]
-                        #nm_alpha = rankdata([-1*br for br in boot_rss],method='dense')/len(boot_rss)/2.0+0.2
-                        
-                        for pb in range(len(boot_rss)):
-                            fitparamsdf = pd.DataFrame()
-                            fitparamsdf[sample_id_cols] = data_fit[sample_id_cols] 
-                            fitparamsdf['ncurves'] = best_n_curves
-                            fitparamsdf['nboot'] = pb+1
-                            fitparamsdf['rss'] = boot_rss[pb]
-                            fitparamsdf['Fit_Params'] = (' ').join(map(str,p_array[pb]))
-                            fitparamsdf['p-value'] = p_corr
-                            if config.Test_Data:
-                                fitparamsdf['solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0]
-                            fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
-                        save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
+                    # plot mus vs fracs for each dataset 
+                    nm_alpha = [0.6]*int(config.Nboot) #default values if not scaling
+                    nm_marker = [50.0]*int(config.Nboot) #default values if not scaling
+                    p_array=np.array(pfit)
+                    ns_array = p_array[:,1:best_n_curves+1]
+                    mus_array = p_array[:,best_n_curves+1:best_n_curves*2+1]                
+                    fracs_array = p_array[:,-best_n_curves:]
+                    #nm_alpha = rankdata([-1*br for br in boot_rss],method='dense')/len(boot_rss)/2.0+0.2
+                    
+                    for pb in range(len(boot_rss)):
+                        fitparamsdf = pd.DataFrame()
+                        fitparamsdf[sample_id_cols] = data_fit[sample_id_cols] 
+                        fitparamsdf['ncurves'] = best_n_curves
+                        fitparamsdf['nboot'] = pb+1
+                        fitparamsdf['rss'] = boot_rss[pb]
+                        fitparamsdf['Fit_Params'] = (' ').join(map(str,p_array[pb]))
+                        fitparamsdf['p-value'] = p_corr
+                        if config.Test_Data:
+                            fitparamsdf['solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0]
+                        fitparams_all = pd.concat([fitparams_all,fitparamsdf],ignore_index=True)
+                    save_metadf(fitparams_all,filename="fitparamsAll_asrun_"+date+".csv")
 
-                        bnm_avg, bnm_err = {}, {}
-                        bfrac_avg,bfrac_err = {}, {}
-                        for n in range(best_n_curves):
-                            boot_centk = (boot_centers[:,n]-centroidUD)*charge*1/d_corr
-                            #print(boot_centk)                            
-                            nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN
-                            nm_marker = [50.0]*len(nm)
-                            nm_alpha = [0.6]*len(nm)                            
-                            fracn = fracs_array[:,n]                            
+                    bnm_avg, bnm_err = {}, {}
+                    bfrac_avg,bfrac_err = {}, {}
+                    for n in range(best_n_curves):
+                        boot_centk = (boot_centers[:,n]-centroidUD)*charge*1/d_corr
+                        #print(boot_centk)                            
+                        nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN
+                        nm_marker = [50.0]*len(nm)
+                        nm_alpha = [0.6]*len(nm)                            
+                        fracn = fracs_array[:,n]                            
 
-                            len_nm = len(nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)])
-                            if (best_n_curves > 1) & (len_nm > 0):
-                                bnm_avg[n] = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
-                                bnm_err[n] = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].std()
-                                bfrac_avg[n] = fracn[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
-                                bfrac_err[n] = fracn[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].std()
-                            else: 
-                                bnm_avg[n] = nm.mean()
-                                bnm_err[n] = nm.std()
-                                bfrac_avg[n] = fracn.mean()
-                                bfrac_err[n] = fracn.std()
+                        #TODO this Pop_Thresh selection is reasonable for a 2 population fit, but is a bit off for 2+
+                        # It would be better to analyze the fitparams dataframe afterwards 
+                        # could add an ncurves_adj column to average fits of same values together.
+                        # 
+                        len_nm = len(nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)])
+                        if (best_n_curves == 2) & (len_nm > 0):
+                            bnm_avg[n] = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
+                            bnm_err[n] = nm[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].std()
+                            bfrac_avg[n] = fracn[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].mean()
+                            bfrac_err[n] = fracn[(fracn > config.Pop_Thresh) & (fracn < 1 - config.Pop_Thresh)].std()
+                        else: 
+                            bnm_avg[n] = nm.mean()
+                            bnm_err[n] = nm.std()
+                            bfrac_avg[n] = fracn.mean()
+                            bfrac_err[n] = fracn.std()
+                        if GP:
                             #ax2[i,j-1].scatter(fracs_array[:,n],mus_array[:,n],label='pop'+str(n))
                             ax2[i,j-1].scatter(nm,fracn,label='pop'+str(n),alpha=nm_alpha,c=mpl_colors_light[n],s=nm_marker)
                             ax2[i,j-1].scatter(boot_centk,fracn,label='pop'+str(n),alpha=0.8,c='purple',marker='x',zorder=0)
@@ -1478,15 +1525,14 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                                 dax.errorbar(timept,bnm_avg[n],yerr=bnm_err[n],alpha=1.0,color=mpl_colors[j-1])
                                 dax.scatter(timept,bnm_avg[n],marker='v',alpha=1.0,s=50.0*bfrac_avg[n]+5.0,
                                             color=mpl_colors[j-1],edgecolors=mpl_colors_dark[j-1])
-                        if config.Test_Data:
-                            for k in range(3):
-                                s_nm = solution['fd'+str(k+1)][solution.time==timept].to_numpy()[0]/100*n_amides #no d_corr required
-                                s_f = solution['p'+str(k+1)][solution.time==timept].to_numpy()[0]
-                                ax2[i,j-1].scatter(s_nm,s_f,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=60,linewidth=1.5)
-                                dax.scatter(i,s_nm,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=100.0*s_f+20.0,)
-                            data_fit.loc[0,'solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0]
-                else: config.Full_boot = False
-
+                if config.Test_Data:
+                    for k in range(3):
+                        s_nm = solution['fd'+str(k+1)][solution.time==timept].to_numpy()[0]/100*n_amides #no d_corr required
+                        s_f = solution['p'+str(k+1)][solution.time==timept].to_numpy()[0]
+                        if GP:
+                            ax2[i,j-1].scatter(s_nm,s_f,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=60,linewidth=1.5)
+                            dax.scatter(i,s_nm,edgecolors='darkred',alpha=1.0,marker='o',facecolor='none',s=100.0*s_f+20.0,)
+                    data_fit.loc[0,'solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0]
 
                 ### PLOTS ###
                 y_plot = y_norm * scale_y
@@ -1500,24 +1546,25 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 #data_fit.loc[0,'skewness'] = skew(y_norm,bias=False)
                 data_fit.loc[0,'max_namides']=n_amides
 
-                env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
-                ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
-                if config.Keep_Raw:
-                    ax[i,j-1].plot( focal_raw.mz, focal_raw.Intensity, color='#999999' ) #ax[i,j-1]
-                else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
-                
-                ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
-                ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2,zorder=10)
-
-                
-                ax[i,j-1].plot( mz, fit_y, '-', label='fit sum N='+str(best_n_curves))
-
-                if overlay_reps:
+                if GP:
+                    env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
+                    ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
                     if config.Keep_Raw:
-                        ax[i,ncols-1].plot( focal_raw.mz, focal_raw.Intensity, color=mpl_colors[j-1],alpha=0.5 ) 
-                    else: ax[i,ncols-1].vlines( mz, 0.0, y_plot, color=mpl_colors[j-1], alpha=0.5 )
-                    ax[i,ncols-1].plot( mz, y_plot, 'o',color=mpl_colors_dark[j-1], label="rep "+str(j), markersize='4')
-                    ax[i,ncols-1].plot( mz, fit_y, '-',color=mpl_colors[j-1])# label='fit sum N='+str(best_n_curves))
+                        ax[i,j-1].plot( focal_raw.mz, focal_raw.Intensity, color='#999999' ) #ax[i,j-1]
+                    else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
+                    
+                    ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
+                    ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2,zorder=10)
+
+                    
+                    ax[i,j-1].plot( mz, fit_y, '-', label='fit sum N='+str(best_n_curves))
+
+                    if overlay_reps:
+                        if config.Keep_Raw:
+                            ax[i,ncols-1].plot( focal_raw.mz, focal_raw.Intensity, color=mpl_colors[j-1],alpha=0.5 ) 
+                        else: ax[i,ncols-1].vlines( mz, 0.0, y_plot, color=mpl_colors[j-1], alpha=0.5 )
+                        ax[i,ncols-1].plot( mz, y_plot, 'o',color=mpl_colors_dark[j-1], label="rep "+str(j), markersize='4')
+                        ax[i,ncols-1].plot( mz, fit_y, '-',color=mpl_colors[j-1])# label='fit sum N='+str(best_n_curves))
 
                 scaler,nexs,mus,fracs = get_params(*best_fit,sort=True,norm=False,unpack=True)
                 scaler = np.power( 10.0, scaler )   
@@ -1530,44 +1577,52 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     mu = mus[k]
                     mu_err = fstdev[k+best_n_curves+1]
                     frac = fracs[k]/fracsum
-                    frac_err = min(1.0,fstdev[-1]/fracsum) #if best_n_curves > 1 else 0.
+                    frac_err = 1.0 #### issue with diffevo, min(1.0,fstdev[-1]/fracsum) #if best_n_curves > 1 else 0.
                     fit_yk = scaler * frac * fitfunc( n_bins, nex, mu, ) * scale_y
                     kindcent = sum(mz*fit_yk)/sum(fit_yk)
                     deut_corr_k = (kindcent - centroidUD)*charge * 1/d_corr
-                    ax2[i,j-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
-                    #dax.errorbar(timept,bnm_avg[n],yerr=bnm_err[n],alpha=1.0,color=mpl_colors[j-1])
-                    if config.Bootstrap == False:
-                        dax.scatter(timept,deut_corr_k,marker='x',alpha=1.0,color=mpl_colors_dark[j-1])
-                    if overlay_reps:
-                        ax2[i,ncols-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
                     data_fit.loc[0,'centroid_'+str(k+1)]=kindcent
-                    data_fit.loc[0,'Dabs_'+str(k+1)]=bnm_avg[k] if config.Full_boot else deut_corr_k 
-                    data_fit.loc[0,'Dabs_std_'+str(k+1)]=bnm_err[k] if config.Full_boot else np.nan ##
-                    data_fit.loc[0,'pop_'+str(k+1)]= bfrac_avg[k] if config.Full_boot else frac
-                    data_fit.loc[0,'pop_std_'+str(k+1)]=bfrac_err[k] if config.Full_boot else frac_err
-                    #data_fit.loc[0,'mu_'+str(k+1)]=mu  #don't include in fit report, keep with all params output
-                    #data_fit.loc[0,'Nex_'+str(k+1)]=nex #don't include in fit report, keep with all params output
-                    #data_fit.loc[0,'Nex_std_'+str(k+1)]=nex_err #don't include in fit report, keep with all params output
+                    data_fit.loc[0,'Dabs_'+str(k+1)]=bnm_avg[k] if config.Nboot else deut_corr_k 
+                    data_fit.loc[0,'Dabs_std_'+str(k+1)]=bnm_err[k] if config.Nboot else np.nan ##
+                    data_fit.loc[0,'pop_'+str(k+1)]= bfrac_avg[k] if config.Nboot else frac
+                    data_fit.loc[0,'pop_std_'+str(k+1)]=bfrac_err[k] if config.Nboot else frac_err
+                    if GP: 
+                        ax2[i,j-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
+                        #dax.errorbar(timept,bnm_avg[n],yerr=bnm_err[n],alpha=1.0,color=mpl_colors[j-1])
+                        if config.Nboot == 0:
+                            if config.Test_Data:
+                                dax.scatter(i,deut_corr_k,marker='x',alpha=1.0,color=mpl_colors_dark[j-1])
+                            else:
+                                dax.scatter(timept,deut_corr_k,marker='x',alpha=1.0,color=mpl_colors_dark[j-1])
+                        if overlay_reps:
+                            ax2[i,ncols-1].scatter(deut_corr_k,frac,marker='x',alpha=1.0,c='k',zorder=10)#mpl_colors[k])
 
-                    nm_for_label = bnm_avg[k] if config.Full_boot else deut_corr_k
-                    frac_for_label = bfrac_avg[k] if config.Full_boot else frac 
-                    #print("nm:",bnm_avg[k],"deut_corr_k",deut_corr_k)
-                    plot_label = ('pop'+str(k+1)+' = '+format(frac_for_label,'.2f')#+' ± '+format(frac_err,'.2f') 
-                                        +'\nDabs_'+str(k+1)+' = '+format(nm_for_label,'.1f')#+' ± '+format(nex_err,'.2f')
-                                        +'\nm/z = '+format(kindcent,'.2f'))
-                    ax[i,j-1].plot( mz, fit_yk, color = 'black', linestyle='solid',linewidth=1.,label=plot_label)
-                    ax[i,j-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) #gives rightside space for legend
-                ax[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
-                ax[i,j-1].legend(frameon=False,loc='upper right');
-                ax[i,j-1].set_xlabel("m/z")
-                ax[i,j-1].set_ylabel("Intensity")
-                
-                if overlay_reps: 
-                    ax[i,ncols-1].set_title(label='Replicates Overlay')
-                    ax[i,ncols-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) 
-                    ax[i,ncols-1].legend(frameon=False,loc='upper right',title='data '+ timelabel);
-                    ax[i,ncols-1].set_xlabel("m/z")
-                    ax[i,ncols-1].set_ylabel("Intensity")
+                        #data_fit.loc[0,'mu_'+str(k+1)]=mu  #don't include in fit report, keep with all params output
+                        #data_fit.loc[0,'Nex_'+str(k+1)]=nex #don't include in fit report, keep with all params output
+                        #data_fit.loc[0,'Nex_std_'+str(k+1)]=nex_err #don't include in fit report, keep with all params output
+
+                        
+                        nm_for_label = bnm_avg[k] if config.Nboot else deut_corr_k
+                        frac_for_label = bfrac_avg[k] if config.Nboot else frac 
+                        #print("nm:",bnm_avg[k],"deut_corr_k",deut_corr_k)
+                        plot_label = ('pop'+str(k+1)+' = '+format(frac_for_label,'.2f')#+' ± '+format(frac_err,'.2f') 
+                                            +'\nDabs_'+str(k+1)+' = '+format(nm_for_label,'.1f')#+' ± '+format(nex_err,'.2f')
+                                            +'\nm/z = '+format(kindcent,'.2f'))
+                        ax[i,j-1].plot( mz, fit_yk, color = 'black', linestyle='solid',linewidth=1.,label=plot_label)
+                        ax[i,j-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) #gives rightside space for legend
+
+                if GP:
+                    ax[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
+                    ax[i,j-1].legend(frameon=False,loc='upper right');
+                    ax[i,j-1].set_xlabel("m/z")
+                    ax[i,j-1].set_ylabel("Intensity")
+                    
+                    if overlay_reps: 
+                        ax[i,ncols-1].set_title(label='Replicates Overlay')
+                        ax[i,ncols-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) 
+                        ax[i,ncols-1].legend(frameon=False,loc='upper right',title='data '+ timelabel);
+                        ax[i,ncols-1].set_xlabel("m/z")
+                        ax[i,ncols-1].set_ylabel("Intensity")
                 #data_fit.loc[0,'scaler']=scaler #don't include in fit report, keep with all params output
                                 
                 data_fits = pd.concat([data_fits,data_fit],ignore_index = True).reset_index(drop = True)
@@ -1578,7 +1633,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 polymodal = ddf[ddf['fit_pops']>1]['time'].unique().tolist()
                 polystr = ' '.join(map(str,polymodal))
                 reportdf.loc[index,'polymodal'] = polystr
-                if any(tp in polymodal for tp in [0,1e6]):
+                if any(tp in polymodal for tp in [0,config.FullDeut_Time]):
                     reportdf.loc[index,'comment'] = "Warning: UN/TD polymodal"
                 reportdf.loc[index,'dataset_run'] = "Yes"
                 save_metadf(reportdf,filename="metadf_asrun_"+date+".csv")
@@ -1589,76 +1644,73 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         print("Could not save running results to",data_output_file_inprogress)
                 
                 centroid_j_corr = (centroid_j - centroidUD) * charge * 1/d_corr # = Dcorr = (m - m0)/(m100-m0)
-                ax2[i,j-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=1.0,c='darkorange',marker='*',zorder=0)
-                ax2[i,j-1].vlines(ymin=(0.0,0.0) ,ymax=(1.0,1.0) ,x=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
-                ax2[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
-                ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
-                #ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
-                ax2[i,j-1].set(xlim=(-3,(uppermz-lowermz+9)))
-                ax2[i,j-1].set_xlabel("Relative Deuterium Level (Da)") #N*mu")
-                ax2[i,j-1].set_ylabel("population") 
-                if overlay_reps:
-                    ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
-                    #ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
-                    ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
-                    ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
-                    ax2[i,ncols-1].set_title(label='Replicates Overlay')
-                    ax2[i,ncols-1].set_xlabel("Relative Deuterium Level (Da)")
-                    ax2[i,ncols-1].set_ylabel("population") 
+                if GP:
+                    ax2[i,j-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=1.0,c='darkorange',marker='*',zorder=0)
+                    ax2[i,j-1].vlines(ymin=(0.0,0.0) ,ymax=(1.0,1.0) ,x=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
+                    ax2[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
+                    ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
+                    ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                    #ax2[i,j-1].set(xlim=(-3,(uppermz-lowermz+9)))
+                    ax2[i,j-1].set_xlabel("Absolute Deuterium Level (Da)") #N*mu")
+                    ax2[i,j-1].set_ylabel("population") 
+                    if overlay_reps:
+                        ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
+                        ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
+                        #ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
+                        ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
+                        ax2[i,ncols-1].set_title(label='Replicates Overlay')
+                        ax2[i,ncols-1].set_xlabel("Absolute Deuterium Level (Da)")
+                        ax2[i,ncols-1].set_ylabel("population") 
 
-        dax.set_ylabel("Relative Deuterium Level (Da)")
-        dax.set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
-        dfig.tight_layout()
-        if config.Test_Data: 
-            yds = np.unique(solution[['fd1','fd2','fd3']].dropna().values)*n_amides/100.0
-            dax.hlines(xmin=[-1.0] * len(yds),xmax=[n_time_points+1.0] * len(yds),y=yds,alpha=0.5,linestyles='dotted',color='grey')
-            dax.set(xlim=(-0.5,n_time_points+0.5))
-            dax.set_xlabel("Test Experiment")
-            dax.legend(handles=dax_legend_elements,loc='upper left')
-        else:
-            dax.hlines(xmin=(-1.0,-1.0) ,xmax=(1e6,1e6) ,y=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
-            dax.set_xlabel("Time, s")
-            if dax_log==True: dax.set_xscale('log')
-            dax.legend(handles=dax_legend_elements[0:max_time_reps],loc='lower right')
-        fig.tight_layout()
-        if config.Full_boot: fig2.tight_layout()
-        
+        if GP:
+            dax.set_ylabel("Absolute Deuterium Level (Da)")
+            dax.set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
+            dfig.tight_layout()
+            if config.Test_Data: 
+                yds = np.unique(solution[['fd1','fd2','fd3']].dropna().values)*n_amides/100.0
+                dax.hlines(xmin=[-1.0] * len(yds),xmax=[n_time_points+1.0] * len(yds),y=yds,alpha=0.5,linestyles='dotted',color='grey')
+                dax.set(xlim=(-0.5,n_time_points+0.5))
+                dax.set_xlabel("Test Experiment")
+                dax.legend(handles=dax_legend_elements,loc='upper left')
+            else:
+                dax.hlines(xmin=(-1.0,-1.0) ,xmax=(config.FullDeut_Time,config.FullDeut_Time) ,y=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
+                dax.set_xlabel("Time, s")
+                if dax_log==True: dax.set_xscale('log')
+                dax.legend(handles=dax_legend_elements[0:max_time_reps],loc='lower right')
+            fig.tight_layout()
+            if config.Nboot: fig2.tight_layout()
+            
+            try:
+                figfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_IndFits_'+date
+                print("saving figure as ",figfile)
+                fig.savefig(os.path.join(config.Output_DIR,figfile+'.pdf'),format='pdf',dpi=600)
+                if config.SVG: fig.savefig(os.path.join(config.Output_DIR,figfile+'.svg'),format='svg')
+                if config.Hide_Figure_Output: plt.close(fig)
+                else: plt.show()
+            except IOError as e:
+                print (f"Could not save: {figfile} file is open")   
 
-        # if config.Bootstrap: 
-        #     if config.Y_ERR: yerr_name = 'bootNoise0p'+format(config.Y_ERR/100.,'.2f')[-2:]+'_'
-        #     else: yerr_name = 'NoNoise_'
-        # else: yerr_name = ''
-        try:
-            figfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_IndFits_'+date
-            print("saving figure as ",figfile)
-            fig.savefig(os.path.join(config.Output_DIR,figfile+'.pdf'),format='pdf',dpi=600)
-            if config.SVG: fig.savefig(os.path.join(config.Output_DIR,figfile+'.svg'),format='svg')
-            if config.Hide_Figure_Output: plt.close(fig)
-            else: plt.show()
-        except IOError as e:
-            print (f"Could not save: {figfile} file is open")   
+            try:
+                #fig2file = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_BootFits_'+yerr_name+date
+                fig2file = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_BootFits_'+date #details will be in separate file
+                print("saving figure as ",fig2file)
+                fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.pdf'),format='pdf',dpi=600)
+                if config.SVG: fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.svg'),format='svg')
+                if config.Hide_Figure_Output: plt.close(fig2)
+                else: plt.show()
+            except IOError as e:
+                print (f"Could not save: {fig2file} file is open") 
 
-        try:
-            #fig2file = 'hdx_ms_hxex3_'+sample+peptide_range+fitfunc_name+'_p'+format(int(config.Ncurve_p_accept*100),'02d')+'_BootFits_'+yerr_name+date
-            fig2file = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_BootFits_'+date #details will be in separate file
-            print("saving figure as ",fig2file)
-            fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.pdf'),format='pdf',dpi=600)
-            if config.SVG: fig2.savefig(os.path.join(config.Output_DIR,fig2file+'.svg'),format='svg')
-            if config.Hide_Figure_Output: plt.close(fig2)
-            else: plt.show()
-        except IOError as e:
-            print (f"Could not save: {fig2file} file is open") 
-
-        try:
-            dfigfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_ndeutBoot_'+date
-            print("saving figure as ",dfigfile)
-            dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.pdf'),format='pdf',dpi=600)
-            if config.SVG: dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.svg'),format='svg')
-            if config.Hide_Figure_Output: plt.close(dfig)
-            else: plt.show()
-        except IOError as e:
-            print (f"Could not save: {dfigfile} file is open") 
-        
+            try:
+                dfigfile = 'hxex_'+str(index)+'_'+sample+'_'+peptide_range+'_z'+str(int(charge))+'_ndeutBoot_'+date
+                print("saving figure as ",dfigfile)
+                dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.pdf'),format='pdf',dpi=600)
+                if config.SVG: dfig.savefig(os.path.join(config.Output_DIR,dfigfile+'.svg'),format='svg')
+                if config.Hide_Figure_Output: plt.close(dfig)
+                else: plt.show()
+            except IOError as e:
+                print (f"Could not save: {dfigfile} file is open") 
+            
         deutdata_all = pd.concat([deutdata_all,deutdata])
         rawdata_all = pd.concat([rawdata_all, rawdata])
     
@@ -1738,7 +1790,7 @@ def export_to_hxexpress(rawdata,metadf,save_xls = False, removeUNTDreps = False)
                 else: return "unused"
             x = "undeut"+"{}".format(int(row['rep']))
             order = '0.0'
-        elif row['time'] == 1e6:
+        elif row['time'] == config.FullDeut_Time:
             if removeUNTDreps == True:
                 if row['rep'] == 1: 
                     return "1.0_TD"
@@ -1833,10 +1885,11 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
         if not focal_fit.empty:
             fits = focal_fit.copy()
             Current_Isotope = get_na_isotope(peptide,z,npeaks=None,mod_dict={})
-            if config.Bootstrap:
+            nboot_list = list(fits['nboot'].unique())
+            if min(nboot_list) > 0:
                 best_n_curves = fits[fits['nboot']==1]['ncurves'].values[0]
             else: best_n_curves = fits['ncurves'].values[-1]
-            for nb in range(0,config.Nboot+1):
+            for nb in nboot_list:
                 params_best_fit = fits.copy()[(fits['nboot']==nb) & (fits['ncurves']==best_n_curves)]['Fit_Params'].values[0]
                 params_best_fit = [float(x) for x in params_best_fit.split()]
                 scaler,nexs,mus,fracs = get_params(*params_best_fit,sort=True,norm=True,unpack=True)
@@ -1853,11 +1906,14 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                 ax.plot( mz, fit_y, '-', alpha=0.5)#label='fit sum N='+str(best_n_curves));
 
                 if residual == True:
+                    rlabel=''
+                    rcolor = 'green'
                     y_residual = y - fit_y
                     if nb == 0:
                         rss = calc_rss(y,fit_y)
-                        rlabel ='rss = '+"{:.3e}".format(rss)
-                    rax.plot( mz, y_residual, '-', alpha=0.5,label=rlabel)
+                        rlabel = 'rss = '+"{:.3e}".format(rss)
+                        rcolor = 'blue'
+                    rax.plot( mz, y_residual, '-', alpha=0.5,label=rlabel,color=rcolor)
                 
                 fracsum = np.sum(fracs)
 
@@ -2006,9 +2062,6 @@ def dataframe_to_pdf(df, filename, numpages=(1, 1), pagesize=(11, 8.5),pagenos =
 # Hide_Figure_Output = True #Recommended when processing lots of data. 
 # SVG = False # also save figures as an svg file, slow, but better for making figures 
 
-# Bootstrap = True #False #
-# Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
-
 # Dfrac = 0.9 #fraction deuterated for "fully" deuterated exchange buffer 
 # Nterm_subtract = 1 #number of N-term residues to remove from possible exchanging NH's (usually 1 or 2)
 # Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
@@ -2028,8 +2081,6 @@ def dataframe_to_pdf(df, filename, numpages=(1, 1), pagesize=(11, 8.5),pagenos =
 # Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
 # Ncurve_p_accept = 0.05 #stringency for accepting more fit populations      
 # Random_Seed = 16 #used for parameter initialization
-# Boot_Seed = True #if False, same seed as Random_Seed, 
-#                  #otherwise different seed for each boot iteration (0 to Nboot + Random_Seed + 1 to not repeat initial fit)   
 # Scale_Y_Values = True # if Scale_Y_Values = True, plots will be in original Intensity units
 #                 # fit will always be on normalized Intensity as it is much faster               
 # Keep_Raw = True # peak_picking will retain the Raw spectrum if True, if False will only keep peaks, auto True for Test_Data
