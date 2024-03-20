@@ -571,8 +571,12 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     mz_mid = pred_mzs.mean() 
 
      #attempt to set threshold based on user noise value 
-    if config.setNoise: threshold = config.setNoise
-    else: threshold = config.Y_ERR/100.0 * data.Intensity.max()
+    if config.setNoise: 
+        threshold = config.setNoise
+        #print("config.SetNoise threshold",threshold)
+    else: 
+        threshold = config.Y_ERR/100.0 * data.Intensity.max()
+        #print("config.Y_ERR threshold",threshold)
 
     peaks = []
     zeroes = 0
@@ -613,6 +617,20 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
             break #if we have enough zeroes and enough points, we're done peak_picking
     #print(n_amides, zeroes, mz_mid)
     peaks = pd.concat(peaks,ignore_index=True)
+
+    # #clean up right side zero points
+    # x = peaks['Intensity'].to_numpy()
+    # cz = 0
+    # for i in range(min_pts,len(x))[::-1]:
+    #     if x[i] < threshold:
+    #         cz += 1
+    #     else: break
+    # # print ("zero points:",cz)
+    # # print ("points to cut:",(cz-padding))
+    # # print ("last index:",len(new_x)-(cz-padding + 1))
+
+    # l_idx = len(x) - (cz - padding + 1)
+    # peaks = peaks[peaks['n_deut'] <= l_idx]
 
     ## adding this section to get X_features at the peakpick step
     try:
@@ -669,7 +687,9 @@ def nCk_real(n,k):
     real (vs integer) version of the NchooseK function
     '''
     #print("n,k:",n,k)
-    if n - k + 1 <= 0: return 0.0
+    if n == k: return 1.0
+    elif n - k + 1 <= 0: return 0.0
+    #if n - k <= 0: return 0.0
     elif n+k > 50: # https://stats.stackexchange.com/questions/72185/how-can-i-prevent-overflow-for-the-gamma-function
         log_nCk = lgamma(n+1) - lgamma(k+1) - lgamma(n-k+1)
         return exp(log_nCk)
@@ -677,41 +697,37 @@ def nCk_real(n,k):
 
 def binom(bins, n, p):
     '''
-    basic binomial function
+    basic (but not simple) binomial function
     '''      
-    ## If ki > n, binoval should be 0 : can't pick more than availble
-    ## shouldn't even eval np.powers ... 
-    ## maybe set k to min(bins,int(n)) and zerofill bins > n 
-    # binoval = np.zeros(bins+1).astype('float64')
-    # k = np.arange(round(n)+1).astype('float64')
-    # nCk = [nCk_real(n,y) for y in k]    
-    # fp1 = np.float_power(p,k)
-    # fp2 = np.float_power(1-p,n-k)
-    # binom_bins = nCk*fp1*fp2
-    # binoval[:len(binom_bins)] = binom_bins
 
     k = np.arange(bins+1).astype('float64')
     nCk = [nCk_real(n,y) for y in k]
 
     with np.errstate(all='ignore'):
-        fp1 = np.float_power(p,k)
-        fp2 = np.float_power(1-p,n-k) #fits, but np.power overflows     
-        binoval = nCk*fp1*fp2
-        binoval = np.nan_to_num(binoval,nan=0.0)
+        # suppress errors: np.power may nan or overflow but we fix it after
 
-    #fp2 = np.clip(np.float_power(1-p,n-k),sys.float_info.min,sys.float_info.max)
-    #fp2 = np.float_power(1-p,np.clip(n-k,0.0,np.inf)) #require n > k    ### This is still unstable in fits
-
-    #binoval = nCk*fp1*fp2
-    # with warnings.catch_warnings(record=True) as w:
-    #     fp1 = np.float_power(p,k)
-    #     fp2 = np.float_power(1-p,n-k) #fits, but np.power overflows 
-    #     binoval = nCk*fp1*fp2
-    #     if len(w)>0:
-    #         print("n,k,p,binoval",n,k,p,binoval)
-    #         binoval = np.nan_to_num(binoval,nan=0.0)
-    #         print("fixed:",binoval)
+        # this attempt was unstable near p = 1
+        # fp1 = np.float_power(p,k)
+        # fp2 = np.float_power(1-p,n-k) #fits, but np.power overflows     
+        # binoval = nCk*fp1*fp2
+        # binoval = np.nan_to_num(binoval,nan=0.0)
         
+        
+        t_fp1, t_fp2, t_binoval = [], [], []
+        for ki in k.astype(int):
+            if nCk[ki] == 0:
+                t_binoval += [0.0]
+                t_fp1 += [0.0]
+                t_fp2  += [0.0]
+            else: 
+                t_fp1 += [np.power(p,ki)]
+                fp2_val = np.clip(np.float_power(1-p,n-ki),sys.float_info.min,sys.float_info.max)
+                t_fp2  += [fp2_val]
+                t_binoval += [nCk[ki] * t_fp1[ki] * t_fp2[ki]]
+
+    binoval = np.array(t_binoval/sum(t_binoval))
+    binoval = np.nan_to_num(binoval,nan=0.0)
+       
     return binoval
 
 def binom_isotope(bins, n,p):
@@ -795,7 +811,7 @@ def get_params(*fit, sort = False, norm = False, unpack = True):
     else:
         return np.concatenate((np.array([scaler]),nexs,mus,fracs))
 
-def init_params(n_curves,max_n_amides,max_y,seed=None):
+def init_params(n_curves,max_n_amides,seed=None):
     '''
     generate intial guess parameters for the fits 
     '''
@@ -803,7 +819,7 @@ def init_params(n_curves,max_n_amides,max_y,seed=None):
     init_rng = np.random.default_rng(seed=seed)
 
     log_scaler_guess = 0.0  
-    nex_guess = list(max_n_amides*init_rng.random(n_curves)) #was same for all at max/2 in < ver3.0
+    nex_guess = list(max_n_amides/config.Nex_Max_Scale*init_rng.random(n_curves)) #was same for all at max/2 in < ver3.0
     nex_low = 0.0 
     sampled = init_rng.random(n_curves*2) #array for both mus and fracs
     mu_guess =  list(sampled[0:n_curves]) #[0.9, 0.9, 0.9] #
@@ -860,11 +876,15 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
     boot_residuals = []
     for i in range(nboot):
         p0 = p0_boot[i]
+        randomdataY = []
+        randomDelta = []
         randomDelta = rng.normal(0., sigma_err_total, len(datay))
         randomDelta = [0 if a==0 else b for a,b in zip(datay,randomDelta)] #don't change y if y=0
         randomdataY = datay + randomDelta 
         #if datapoint is zero, leave as zero and don't let value go negative
-        randomdataY = np.clip(randomdataY, 0.0, np.inf) 
+        randomdataY = np.clip(randomdataY, 0.0, np.array(datay)*2)#np.inf) 
+
+        #print(randomdataY)
 
         if (len(p0) > len(randomdataY)): 
                             print(f"attempting to fit more parameters than data points in bootstrap")
@@ -884,7 +904,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
         ps.append(rfit)
         ps_cov.append(randomcov) ## this won't work if ever Sorting
 
-        #ax.plot( mz, randomdataY*yscale, color = 'magenta', linestyle='dashed', )
+        ax.plot( mz, randomdataY*yscale, color = 'magenta', linestyle='dashed', linewidth=2)
         # ax.plot( mz, randomdataY, color = 'green', linestyle='dashed', )
 
         tempr = rfit.copy()
@@ -1060,7 +1080,15 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         
         print("\nDataset",index,"(",dataset_count,"of",len(metadf),")")
         print("Performing fits for "+sample+" "+peptide_range+": "+peptide+" z="+str(int(charge)))
-                   
+        
+        #update config.Max_Pops to pick the correct number of peaks 
+        if config.Preset_Pops:
+            try: 
+                fixed_pop = filter_df(config_df,samples=sample,peptides=peptide,charge=charge,quiet=True)#['min/max_pops'][0]
+                temp_max_pops = config.Max_Pops
+                config.Max_Pops  = int(fixed_pop['max_pops'].values[0]) 
+            except: pass 
+
         if config.Data_Type == 1:
             if config.Test_Data:
                 config.Keep_Raw == True
@@ -1111,7 +1139,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         raw_filter_idx += list(filter_df(rawdata,**spec).index)
                     rawdata = pd.concat([rawdata.drop(index=raw_filter_idx),userraw],ignore_index=True)
                 else: rawdata = userraw
-           
+
+        if config.Preset_Pops:
+            config.Max_Pops = temp_max_pops #put back to user set value   
+
         ## Now have deutdata, rawdata from any data format 
         
         if deutdata.empty:
@@ -1183,9 +1214,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 Noise += max(y)/n_time_reps
                 if config.Binomial_dCorr: 
                     #use the binomial center for the d_corr calc, not the centroid which may capture impurity peaks
-                    initial_estimate, bounds = init_params(1,max_n_amides,np.max(y),seed=config.Random_Seed-1)
+                    initial_estimate, bounds = init_params(1,max_n_amides,seed=None)#config.Random_Seed-1)
+                    p0_UD = (0, 0.05, 0.05, 1.0 ) #scaler, nex, mu, frac
                     try:
-                        fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
+                        fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=p0_UD, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
                         scaler = np.power( 10.0, scaler )  
@@ -1210,9 +1242,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 Noise += max(y)/n_time_reps
                 if config.Binomial_dCorr: 
                     #use the binomial center for the d_corr calc, not the centroid which may capture impurity peaks
-                    initial_estimate, bounds = init_params(1,max_n_amides,np.max(y),seed=config.Random_Seed-1)
+                    initial_estimate, bounds = init_params(1,max_n_amides,seed=None)#config.Random_Seed-1)
+                    p0_TD = (0, max_n_amides - 1, 0.8, 1.0 )
                     try:
-                        fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=initial_estimate, maxfev=int(1e6), 
+                        fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=p0_TD, maxfev=int(1e6), 
                                                 bounds = bounds   )
                         scaler,nexs,mus,fracs = get_params(*fit,sort=True,norm=True,unpack=True)
                         scaler = np.power( 10.0, scaler )  
@@ -1246,6 +1279,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         #print ("centroids and delta mass:",centroidUD, centroidTD,(centroidTD-centroidUD)*charge,"charge, amides, dcorr",charge,n_amides,d_corr)
 
         if config.setNoise: Noise = config.setNoise  
+        # print("namides, centroidUD, centroidTD",n_amides, centroidUD,centroidTD)
+        # print("formula dcorr:",(charge*(centroidTD - centroidUD)/n_amides))
+        # print("Noise:",Noise)
+        # print("dcorr",d_corr)
 
         for i, ti in enumerate(time_indexes): #range(0,n_time_points): 
             n_time_rep = int(max(deutdata.rep[(deutdata.time_idx==ti)]))
@@ -1333,7 +1370,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
                     print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,"          ",end='\r',flush=True) 
                     
-                    initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=config.Random_Seed)
+                    initial_estimate, bounds = init_params(n_curves,max_n_amides,seed=config.Random_Seed)
                     if (len(initial_estimate) > n_bins): 
                         print(f"attempting to fit more parameters than data points: time {timelabel} rep {j} N={n_curves} curves")
                         #should be able to exit at this point, haven't updated last fit parameters including p_err
@@ -1360,7 +1397,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                             for ifits in range(2,config.BestFit_of_X+1):
                                 if config.Random_Seed: seed = config.Random_Seed+ifits
                                 else: seed = None
-                                initial_estimate, bounds = init_params(n_curves,max_n_amides,max_y,seed=seed)
+                                initial_estimate, bounds = init_params(n_curves,max_n_amides,seed=seed)
                                 
                                 newfit, newcovar = curve_fit( n_fitfunc, n_bins, y_norm, p0=initial_estimate, maxfev=int(1e6), 
                                                     bounds = bounds   )
@@ -1428,7 +1465,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     best_fit = fit            
                     best_covar = covar 
                     best_n_curves = n_curves
-                    if rss/n_bins < config.Residual_Cutoff:
+                    if rss < config.Residual_Cutoff:
                         break # if the residual sum squared is sufficiently small, use that number of curves 
                       
                 #end n_curves for loop
@@ -1451,10 +1488,19 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     for boot in range(config.Nboot): #send different p0 for each Bootstrap iteration
                         if config.Random_Seed: bseed = boot+config.Random_Seed+1
                         else: bseed = None
-                        p0, bbounds = init_params(best_n_curves,max_n_amides,max_y,seed=bseed) #best_n_curves
-                        # if config.Use_DiffEvo == True: p0 = best_fit #TODO want to bias the good starting point, but need to randomize still
+                        p0, bbounds = init_params(best_n_curves,max_n_amides,seed=bseed) #best_n_curves
+                        de_bounds = list(zip(bbounds[0],bbounds[1]))
+                        
+                        #randomize p0 from best_fit
+                        #if config.Use_DiffEvo == True: 
+                        p0 = best_fit 
+                        randp0 = rng.normal(0., 0.05, len(p0)) # +/- fraction up to 0.1
+                        p0_new = p0 + randp0 * [0.95*(u - l) for (l,u)  in (de_bounds)]
+                        p0 = list(np.clip(p0_new, bbounds[0], bbounds[1]))
+                        p0 = get_params(*p0,sort=True,norm=True,unpack=False)
+                            
                         p0_boot.append(p0)
-                    #p0_boot, bbounds = init_params(best_n_curves,n_amides,max_y,seed=config.Random_Seed)
+                    #p0_boot, bbounds = init_params(best_n_curves,n_amides,seed=config.Random_Seed)
                     #rss = 0.0 #calc_rss( y_norm, fit_y, ) #this doesn't seem appropriate for binom fits
                     if GP == False: boot_ax = None
                     else: boot_ax = ax[i,j-1]
