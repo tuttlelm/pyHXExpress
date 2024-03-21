@@ -804,7 +804,8 @@ def get_params(*fit, sort = False, norm = False, unpack = True):
         fracs = fracs[use_index]#[::-1]]
     if norm: 
         sumfracs = np.sum(fracs)
-        fracs = fracs/sumfracs
+        #print("fracs",fracs,sumfracs)
+        if sumfracs > 0: fracs = fracs/sumfracs
     
     if unpack:
         return scaler, nexs, mus, fracs
@@ -1093,20 +1094,20 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             if config.Test_Data:
                 config.Keep_Raw == True
                 deutdata, rawdata, solution = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw)
-            elif config.Keep_Raw:
+            elif (user_deutdata.empty) or (config.Keep_Raw):
                 if update_deutdata == True: #only peakpick if necessary
                     deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
             else: 
-                if update_deutdata == True:
+                if (user_deutdata.empty) or (update_deutdata == True):
                     deutdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
         else: # Data_type == 2, already checked that it is 1 or 2            
             if config.Keep_Raw:
-                if update_deutdata == True:
+                if (user_deutdata.empty) or (update_deutdata == True):
                     spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
                     csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata, rawdata = read_specexport_data(csv_files,spec_path,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
             else: 
-                if update_deutdata == True:
+                if (user_deutdata.empty) or (update_deutdata == True):
                     spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
                     csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata = read_specexport_data(csv_files,spec_path,row,keep_raw=False,mod=mod_dic)
@@ -1533,7 +1534,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     bnm_avg, bnm_err = {}, {}
                     bfrac_avg,bfrac_err = {}, {}
                     for n in range(best_n_curves):
-                        boot_centk = (boot_centers[:,n]-centroidUD)*charge*1/d_corr
+                        boot_centk = (boot_centers[:,n]-centroidUD)*charge*1/d_corr # like nm but discrete due to peak intervals 
                         #print(boot_centk)                            
                         nm = mus_array[:,n]*ns_array[:,n]*1/d_corr #apply correction based on TD-UN
                         nm_marker = [50.0]*len(nm)
@@ -1558,7 +1559,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         if GP:
                             #ax2[i,j-1].scatter(fracs_array[:,n],mus_array[:,n],label='pop'+str(n))
                             ax2[i,j-1].scatter(nm,fracn,label='pop'+str(n),alpha=nm_alpha,c=mpl_colors_light[n],s=nm_marker)
-                            ax2[i,j-1].scatter(boot_centk,fracn,label='pop'+str(n),alpha=0.8,c='purple',marker='x',zorder=0)
+                            #ax2[i,j-1].scatter(boot_centk,fracn,label='pop'+str(n),alpha=0.8,c='purple',marker='x',zorder=0) 
                             ax2[i,j-1].errorbar(bnm_avg[n],bfrac_avg[n],xerr=bnm_err[n],yerr=bfrac_err[n],elinewidth=2,zorder=10,color=mpl_colors_dark[n])
                             if overlay_reps:
                                 ax2[i,ncols-1].scatter(nm,fracs_array[:,n],alpha=0.6,label=str(j)+'_pop'+str(n),)
