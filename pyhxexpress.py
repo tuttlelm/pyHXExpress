@@ -83,11 +83,11 @@ def write_parameters(write_dir=os.getcwd(),overwrite=False):
         file needs to be in same file location as the current working directory set in the notebook (this is the default save location)
     '''
 
-    all_params = ['Allow_Overwrite', 'BestFit_of_X', 'Binomial_dCorr', 'Data_DIR', 'Data_Type', 'Dfrac', 'Env_limit', 'Env_threshold', 'FullDeut_Time',
-                  'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 'Ncurve_p_accept', 'Nex_Max_Scale',
-                  'Nterm_subtract', 'Output_DIR', 'Overlay_replicates', 'Peak_Resolution', 'Pop_Thresh', 'Preset_Pops', 'Preset_Pops_File', 'process_ALL', 
-                  'Random_Seed', 'Read_Spectra_List', 'Residual_Cutoff','Save_Spectra', 'Scale_Y_Values', 'setNoise', 'SVG', 'Test_Data', 'User_mutants', 'User_peptides', 
-                  'WRITE_PARAMS', 'Y_ERR', 'Zero_Filling']
+    all_params = ['Allow_Overwrite', 'BestFit_of_X', 'Binomial_dCorr', 'Data_DIR', 'Data_Type', 'DiffEvo_kwargs', 'DiffEvo_threshold','Dfrac', 'Env_limit', 
+                  'Env_threshold', 'FullDeut_Time', 'Hide_Figure_Output', 'Keep_Raw', 'Limit_by_envelope', 'Max_Pops', 'Metadf_File', 'Min_Pops', 'Nboot', 
+                  'Ncurve_p_accept', 'Nex_Max_Scale', 'Nterm_subtract', 'Output_DIR', 'Overlay_replicates', 'Peak_Resolution', 'Pop_Thresh', 'Preset_Pops', 
+                  'Preset_Pops_File', 'process_ALL', 'Random_Seed', 'Read_Spectra_List', 'Residual_Cutoff','Save_Spectra', 'Scale_Y_Values', 'setNoise', 
+                  'SVG', 'Test_Data', 'Use_DiffEvo', 'User_mutants', 'User_peptides', 'WRITE_PARAMS', 'Y_ERR', 'Zero_Filling']
 
     filename = "hdxms_params_"+config.date+".py"
     write_file = os.path.join(write_dir,filename)
@@ -1079,7 +1079,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         
         shortpeptide = peptide if len(peptide) < 22 else peptide[:9]+'...'+peptide[-9:] #for tidy plot labels
         
-        print("\nDataset",index,"(",dataset_count,"of",len(metadf),")")
+        print("\n\nDataset",index,"(",dataset_count,"of",len(metadf),")")
         print("Performing fits for "+sample+" "+peptide_range+": "+peptide+" z="+str(int(charge)))
         
         #update config.Max_Pops to pick the correct number of peaks 
@@ -1702,6 +1702,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     ax2[i,j-1].set_ylabel("population") 
                     if overlay_reps:
                         ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
+                        ax2[i,ncols-1].vlines(ymin=(0.0,0.0) ,ymax=(1.0,1.0) ,x=(0,n_amides),alpha=0.5,linestyles='dotted',color='grey')
                         ax2[i,ncols-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
                         #ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
                         ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
