@@ -905,7 +905,7 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
         ps.append(rfit)
         ps_cov.append(randomcov) ## this won't work if ever Sorting
 
-        ax.plot( mz, randomdataY*yscale, color = 'magenta', linestyle='dashed', linewidth=2)
+        if ax != None: ax.plot( mz, randomdataY*yscale, color = 'orchid', linestyle='dashed', linewidth=2)
         # ax.plot( mz, randomdataY, color = 'green', linestyle='dashed', )
 
         tempr = rfit.copy()
