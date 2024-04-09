@@ -18,8 +18,8 @@ Test_Data = True
 Data_Type = 1 
 Save_Spectra = False
 process_ALL = True
-Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
-#Data_DIR = '/home/tuttle/data/HDX-MS/pyHXExpress/Bimodal_HDX_Data'
+#Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
+Data_DIR = '/home/tuttle/data/HDX-MS/pyHXExpress/Bimodal_HDX_Data'
 Read_Spectra_List = True #get metadf from Metadf_File
 Metadf_File = "hdxms_testsets_metadf.csv"              
 Output_DIR = os.path.join(Data_DIR,'output_'+str(date),'')
@@ -29,18 +29,20 @@ Preset_Pops_File = os.path.join(Data_DIR,"test_configdf_26feb2024.csv")
 User_mutants = ['']
 User_peptides = ['']
 
+Generate_Plots = True
 Hide_Figure_Output = False #True Recommended when processing lots of data. 
 SVG = False # also save figures as an svg file, slow, but better for making figures 
 
-Bootstrap = True #False #
-Full_boot=True #plot all the bootstrap fits, frac vs nex*mu
+BestFit_of_X = 3
+Residual_Cutoff = 1e-5
 
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
 setNoise = 100 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks
 Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,yerr), 0.0 for NoNoise, use ~0.5% for noise added
             # the absolute Noise value is then Y_ERR * avg(maxInt of Un and TD)
             # this is a very rough way to give a consistent Noise value throughout a dataset. 
-Dfrac = 0.90 
+Dfrac = 0.90
+FullDeut_Time = 1e6 # dummy timept for fully deuterated (TD) sample
 Nterm_subtract = 1 # number of N-term residues to remove from possible exchanging NH's (usually 1 or 2)
                    # This will mostly affect the corrected Dabs value as it is scaled to make TD = theoretical Nex
 Zero_Filling = 6 # large value to try to fit 3 binomials on short peptides, not generally recommended.
@@ -55,12 +57,16 @@ Nex_Max_Scale = 1.2 #multipler of how much to let Nex exceed the number predicte
 Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
 Ncurve_p_accept = 0.05 #stringency for accepting more fit populations, higher permits more populations, reasonable values are 0.01 to 0.05 
 Random_Seed = 16 #used for parameter initialization
-Boot_Seed = True #if False, same seed as Random_Seed, 
-                 #otherwise different seed for each boot iteration (0 to Nboot + Random_Seed + 1 to not repeat initial fit)   
+
+  
 Scale_Y_Values = True # if Scale_Y_Values = True, plots will be in original Intensity units
                 # fit will always be on normalized Intensity as it is much faster               
 Keep_Raw = True # peak_picking will retain the Raw spectrum if True, if False will only keep peaks, auto True for Test_Data
 Overlay_replicates = True #add column to figures that is overlay of all available replicates
+
+Use_DiffEvo = False
+DiffEvo_threshold = 0 #1e-15
+DiffEvo_kwargs = {'polish':True,'maxiter':1000}
 
 ########################################
 '''end user input''';
