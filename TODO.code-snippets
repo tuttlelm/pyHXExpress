@@ -1,35 +1,15 @@
 TODO
 
-make sure pcorr calculation is same as Mike's excel
-Generate nice summary report, flag bimodal (and whether TD is bimodal)
+
 could also flag when a pboot solution is < min_pop as might support fewer pops
 
 
 Bugs:
 
-
-Binomial_dCorr: need to check that not only are UN/TD present but that they have data
-(maria's data, b1_hetero/HSPB1 0049-0077 z3)
-
-data_fits_asrun .. not a real index
-
->>need to check nex*mus for #D ... was not correct for n=1 fit of TD since nex > namide
-applies to bnm and nm values 
-centroid correction is okay: (centj - centun)*/charge * 1/dcorr = (m-m0)/(m100-m0)
-
-
->>calculate back exchange % = 1 - (TD - UN)/(namides * Dfrac)
-        Dfrac = %D2O of exchange D2O buffer (0.85-0.90 is common)
-
-
+... 
 
 Features:
 
->Add N=1 data to NDeut plots and hline for theoretical TD
->keep N=1 *fit and *bestfit in data_fits for later use
->need a plotter function to plot desired data and fits at will
-
->>Need to save data in a way that you can recreate plots without rerunning 
 
 >>calculate average time per run to give estimated time remaining
 
@@ -43,11 +23,6 @@ Features:
 
 
 Notes:
-limit by envelope on 5 residue peptide ... hitting one 3pop, missing some 2pop
-
-gather nboot, noise vs average values to numerically support approach
-
-
 
 Update m/z inverval according to ExMS https://pubs.acs.org/doi/10.1007/s13361-011-0236-3
 For each search peptide, ExMS calculates the expected m/z locations of its isotopic peaks. For all-H samples, peak m/z values based on natural isotopic abundance are well defined. They take into account the 13C - 12C mass difference (ΔmC = 1.003355), and are calculated from mmono/z out to (mmono + maxH)/z. For deuterated samples, expected peak locations must also take into account the D - H difference (ΔmH = 1.006277). We adopt the following compromise. For the first two peaks above mmono/z, the Δm/z added for each heavier peak is taken as ΔmC/z. For the third and fourth peaks, the Δm/z added is the average of ΔmC and ΔmH ([ΔmC - ΔmH]/2z). For all heavier peaks ΔmH/z is added for each new peak. These positions are calculated out to (mmono + maxH + maxD)/z.

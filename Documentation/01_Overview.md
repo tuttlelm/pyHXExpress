@@ -7,7 +7,7 @@ This is a general overview of how to use pyHXExpress. The easiest way to get sta
 
 ### Installation
 
-It is sufficient to have they pyhxexpress.py and config.py files in the same folder as where you will run scripts or create a Jupyter Notebook. See the requirements.txt file for additional modules that may need to be installed. A proper release and a pip install option is in the works.
+It is sufficient to have they pyhxexpress.py and config.py files in the same folder as where you will run scripts or create a Jupyter Notebook. See the requirements.txt file for additional modules that may need to be installed (pip install -r requirements.txt). A proper release and a pip install option is in the works.
 
 ### Input Data
 

@@ -15,8 +15,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import os
 import sys
 import importlib
-import tensorflow as tf
-from keras.models import load_model
+# import tensorflow as tf
+# from keras.models import load_model
 from scipy.optimize import curve_fit
 from scipy.optimize import differential_evolution
 #from scipy.stats import rankdata, skew
@@ -964,6 +964,9 @@ def predict_pops(trained_model,datafits):
    '''
    Predict 1 or more populations based on trained model and X_features
    '''
+   import tensorflow as tf
+   from keras.models import load_model
+
    df = datafits.copy()
    if 'TD_env_width' not in df.columns:
       df = get_TDenv(df)
