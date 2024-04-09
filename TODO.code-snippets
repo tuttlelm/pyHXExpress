@@ -6,7 +6,8 @@ could also flag when a pboot solution is < min_pop as might support fewer pops
 
 Bugs:
 
-... 
+might be issue with tensorflow version if doing predict_pops
+
 
 Features:
 
