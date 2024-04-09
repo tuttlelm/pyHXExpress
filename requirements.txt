@@ -1,5 +1,6 @@
 numpy
 pandas
+importlib
 pymupdf
 scipy
 matplotlib
