@@ -451,7 +451,7 @@ def read_specexport_data(csv_files,spec_path,row,keep_raw,mod_dict={}):
     peaks=[]
 
     for f in csv_files:
-        fileinfo = f.split('.')[0].split('-')
+        fileinfo = f.rsplit('.',1)[0].split('-')
         # print(fileinfo, len(fileinfo))
         rep = float(fileinfo[-2])
         if fileinfo[0] == 'Non': time = 0.0 
