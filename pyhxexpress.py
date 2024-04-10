@@ -15,8 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import os
 import sys
 import importlib
-# import tensorflow as tf
-# from keras.models import load_model
+
 from scipy.optimize import curve_fit
 from scipy.optimize import differential_evolution
 #from scipy.stats import rankdata, skew
@@ -379,8 +378,12 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
         rep = 1     
         if dtime[0:6] == 'undeut': delay = 0.0 
         elif dtime[0:2] == 'TD': delay = config.FullDeut_Time #1e6
-        else:
-            tp = float(dtime.split(' ')[0].split('.')[0])
+        else: 
+            tpstr = dtime.split(' ')[0].split('.')[0]
+            if tpstr == '0':
+                tp = float(dtime.split(' ')[0])  #leave as decimal, no unambiguous way to do replicates 
+            else:
+                tp = float(tpstr) 
             tunit = dtime.split(' ')[-1]
             #print(tp, tunit)
             delay = tp * np.power(60.0,'smh'.find(tunit[0]))
@@ -1883,7 +1886,7 @@ def export_to_hxexpress(rawdata,metadf,save_xls = False, removeUNTDreps = False)
         hxcols.to_excel(os.path.join(config.Data_DIR,filename+".xlsx"),index=None)
     return hxcols
 
-def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,ax=None,rax=None,plt_kwargs={},simfit=False):
+def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,ax=None,rax=None,plt_kwargs={},simfit=False,saveas=None):
     '''
     intended to plot a single spectrum: raw data, picked peaks, and fits
     '''
@@ -1997,6 +2000,20 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
     
     if len(ax.get_legend_handles_labels()[0])>0:
         ax.legend(frameon=False,loc='upper right');
+    
+    fig.tight_layout()
+    if saveas:
+        try:
+            figfile = saveas
+            print("saving figure as ",os.path.join(config.Output_DIR,figfile))
+            if figfile[:-4] == '.pdf':
+                fig.savefig(os.path.join(config.Output_DIR,figfile),format='pdf',dpi=600)
+            elif figfile[:-4] == '.svg':
+                fig.savefig(os.path.join(config.Output_DIR,figfile),format='svg')
+            else: fig.savefig(os.path.join(config.Output_DIR,figfile))
+        except IOError as e:
+            print (f"Could not save: {figfile} file is open")  
+
     return
 
 
