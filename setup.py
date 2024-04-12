@@ -14,11 +14,11 @@ setup(
     url='https://github.com/tuttlelm/pyHXExpress',
     license='GPLv3',
     packages=find_packages(),
-    install_requires=['numpy','pandas','importlib','pymupdf','scipy','matplotlib','pyteomics',
+    install_requires=['numpy','pandas','pymupdf','scipy','matplotlib','pyteomics',
               'brain-isotopic-distribution','biopython','tensorflow==2.13.0','keras'],
     keywords='HDX-MS',
 
-    py_modules = ['pyhxexpress']
+    py_modules = ['pyhxexpress'],
     
   
     classifiers= [
