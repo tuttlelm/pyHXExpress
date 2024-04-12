@@ -9,6 +9,9 @@ used in python scripts or used interactively within Jupyter Notebooks. The goal 
 to allow users to easily interact with their data and subsequent outputs to gain statistically 
 supported insights into the polymodality of the HDX data. 
 
+## How to use this tool
+For now just grab the pyhxexpress.py and config.py files.
+See Documentation for a guide to analysis. 
 
 
 ### References
