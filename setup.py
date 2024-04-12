@@ -15,7 +15,7 @@ setup(
     license='GPLv3',
     packages=find_packages(),
     install_requires=['numpy','pandas','pymupdf','scipy','matplotlib','pyteomics',
-              'brain-isotopic-distribution','biopython','tensorflow==2.13.0','keras'],
+              'brain-isotopic-distribution','biopython'],
     keywords='HDX-MS',
 
     py_modules = ['pyhxexpress'],
