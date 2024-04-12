@@ -10,7 +10,14 @@ to allow users to easily interact with their data and subsequent outputs to gain
 supported insights into the polymodality of the HDX data. 
 
 ## How to use this tool
-For now just grab the pyhxexpress.py and config.py files.
+For now just grab the pyhxexpress.py, config.py, and requirements.txt files.
+You'll need python 3.8+. For additonal dependencies run:
+
+
+    pip install -r requirements.txt
+
+
+
 See Documentation for a guide to analysis. 
 
 
