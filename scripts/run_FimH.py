@@ -1,6 +1,6 @@
 import os
 import importlib
-import pyhxexpress as hxex
+import pyhxexpress.hxex as hxex
 import numpy as np, pandas as pd
 #pd.set_option('display.max_columns',None)
 #%pip install tensorflow==2.13.0
