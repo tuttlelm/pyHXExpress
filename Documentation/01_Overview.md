@@ -30,11 +30,11 @@ A metadata dataframe ('metadf') is used to control what peptide/charge/replicate
 
 The minimum required columns in a metadf file are 'Index' (integer row identifier that becomes the 'data_id' in outputs),'file' (the filename with extension for tabular data or the peptide folder name for SpecExport data),'sample' (sample name),'start_seq' (begin residue number),'end_seq' (end residue number),'peptide_range' (begin-end),'charge' (integer charge state), and 'peptide' (correct single letter sequence). Any additional columns are allowed and will be ignored.
 
-**If there are any peptide modifications, the user will need to manually create or modify the inferred metadf file to include a 'modification' column that contains any peptide modification present for each peptide. A phosphorylation modification (+HPO3) would be indicated by the composition: 'H:1 P:1 O:3'. 
+**If there are any peptide modifications, the user will need to manually create or modify the inferred metadf file to include a 'modification' column that contains any peptide modification present for each peptide. A phosphorylation modification (+HPO3) would be indicated by the composition: 'H:1 P:1 O:3'. Currently, the modification is assumed to be non-exchangable. Future versions will address this.
 
 
 #### III. The User Configuration File
-The default config.py file is required along with the pyhxexpress.py file. This file contains all of the potentially user-configurable settings that will specify input and output directories and numerous settings related to how the fits should be performed. Users should create their own user_config.py (any .py filename is allowed) and update the settings as appropriate. 
+The default config.py file is required along with the hxex.py file (this is automatic if using pip install pyhxexpress). This file contains defaults for all of the potentially user-configurable settings that will specify input and output directories and numerous settings related to how the fits should be performed. Users should create their own user_config.py (any .py filename is allowed) and update the settings as appropriate. 
 
 The example notebooks will go into greater detail about what each setting controls. Features include specifying the type of data (tabular or SpecExport), the min and max number of populations to be fit (*this can also be specified per dataset, see advanced examples), the p-value threshold to use to allow fitting of additional populations, a minimum population requirement, and much more.
 

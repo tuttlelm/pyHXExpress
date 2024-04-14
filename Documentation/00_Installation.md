@@ -13,7 +13,7 @@ or
 
     pip3 install pyhxexpress
 
-Using pip or pip3 depends on your python installation. This command should install pyhxexpress and all of the required modules. Depending on your particular python environment, some of these dependency installs may complain. You can try downloading the requirements.txt file and run 'pip install -r requirements.txt' and then repeat the 'pip install pyhxexpress' command. 
+Using pip or pip3 depends on your python installation. This command should install pyhxexpress and all of the required modules. Depending on your particular python environment, some of these dependency installs may complain. You can try downloading the requirements.txt file and run 'pip install -r requirements.txt' and then repeat the 'pip install pyhxexpress' command. Or you can just pip install each individual module that is complaining and then repeat the 'pip install pyhxexpress' command.
 
 If you take this approach, you will load pyhxexpress in your python command line or Jupyter Notebook session by using 
 
@@ -21,7 +21,7 @@ If you take this approach, you will load pyhxexpress in your python command line
 
 #### 2. Just grab the files
 
-It is sufficient to have they hxex.py and config.py files in the same folder as where you will run scripts or create a Jupyter Notebook. On github these are in the pyhxexpress subfolder. If you go to each file, there will be a download raw option. 
+It is sufficient to have the hxex.py and config.py files in the same folder as where you will run scripts or create a Jupyter Notebook. On github these are in the pyhxexpress subfolder. If you go to each file, there will be a download raw option. 
 
 See the requirements.txt file for additional modules that may need to be installed (pip install -r requirements.txt). Generally, if you get going with this and see an error expressing some sense of 'module not found', you can just try pip install module to see if that sorts things out. 
 
