@@ -1,3 +1,9 @@
+'''
+Copyright 2024 Lisa M Tuttle
+Configuration file to be used with pyHXExpress
+https://github.com/tuttlelm/pyHXExpress
+'''
+
 import os
 from datetime import datetime
 now = datetime.now()

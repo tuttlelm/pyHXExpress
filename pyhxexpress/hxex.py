@@ -1,5 +1,10 @@
 '''
 pyHXEXPRESS v0.0.100
+
+Copyright 2024 Lisa M Tuttle
+
+https://github.com/tuttlelm/pyHXExpress
+
 '''
 #%matplotlib widget 
 import numpy as np, pandas as pd 
