@@ -17,7 +17,7 @@ Once installed, there are additional guides in the [Documentation](Documentation
 <br>
 
 ##### New to python and Jupyter?
-If you are brand new to python and Jupyter Notebook, there are many guides out there to help you get started. I highly recommend an online course put together by the RCSB that is avialble online: [Python Scripting for Biochemistry & Molecular Biology](https://pdb101.rcsb.org/train/training-events/python)
+If you are brand new to python and Jupyter Notebook, there are many guides out there to help you get started. I highly recommend course put together by the RCSB that is avialble online: [Python Scripting for Biochemistry & Molecular Biology](https://pdb101.rcsb.org/train/training-events/python)
 
 A common way to use Jupyter Notebook is as installed through Anaconda, where you then work in a web browser tab. This is fine. Personally, I strongly prefer working in [VS Code](https://code.visualstudio.com/docs/datascience/jupyter-notebooks) which is going to be more similar to an RStudio environment if you have any experience there.  
 
