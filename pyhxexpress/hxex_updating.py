@@ -1970,7 +1970,7 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                 # print("y/fit_y:", y/fit_y)
 
                 ax.plot( mz, fit_y, '-', alpha=0.5)#label='fit sum N='+str(best_n_curves));
-                fit_data['fit_sum_'+str(nb)] = fit_y
+                fit_data['fit_sum_nb'+str(nb)] = fit_y
 
                 if residual == True:
                     rlabel=''
@@ -2000,7 +2000,7 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                         if (k==0) & (nb==1): fit_kwds.update({'label':'BootFits'})
                         if (nb==0): fit_kwds.update({'label':plot_label})
                     ax.plot( mz, fit_yk,**fit_kwds)
-                    fit_data['fit_'+str(k)+'_'+str(nb)] = fit_yk
+                    fit_data['fit_p'+str(k)+'_nb'+str(nb)] = fit_yk
         fit_data[sample_id_cols] =s,p,t,r,z
         all_fit_data = pd.concat([all_fit_data,fit_data],ignore_index=True)
     if len(deut_spectra) == 1:
