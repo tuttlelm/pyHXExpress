@@ -1891,7 +1891,8 @@ def export_to_hxexpress(rawdata,metadf,save_xls = False, removeUNTDreps = False)
         hxcols.to_excel(os.path.join(config.Data_DIR,filename+".xlsx"),index=None)
     return hxcols
 
-def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,ax=None,rax=None,plt_kwargs={},simfit=False,saveas=None):
+def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,
+                  ax=None,rax=None,plt_kwargs={},simfit=False,saveas=None,return_fit_data=False):
     '''
     intended to plot a single spectrum: raw data, picked peaks, and fits
     '''
@@ -1907,13 +1908,17 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
             fig, (ax,rax) =  plt.subplots(2, 1, figsize=(5,5),gridspec_kw={'height_ratios': [3, 1]})
     plt_raw = {'color':'#999999'}
     plt_raw.update(plt_kwargs)
-    deut_spectra = zip(*[deutdata[col] for col in ['sample','peptide_range','time','rep','charge']])
+    sample_id_cols = ['sample','peptide_range','time','rep','charge']
+    deut_spectra = zip(*[deutdata[col] for col in sample_id_cols])
     deut_spectra = list(dict.fromkeys(deut_spectra))
+    all_fit_data = pd.DataFrame()
 
     for s,p,t,r,z in deut_spectra:
         focal_data = filter_df(deutdata,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
         focal_raw = filter_df(rawdata,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
         focal_fit = filter_df(fit_params,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
+
+        fit_data = pd.DataFrame()
 
         peptide = focal_data['peptide'].values[0]
         peptide_range = focal_data['peptide_range'].values[0]
@@ -1941,6 +1946,8 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
         ax.plot(mz, y, 'ro',  markersize='4',label=pl ,zorder=1)
         ax.plot(focal_raw.mz, rawint, **plt_raw ,zorder=0)
 
+        fit_data = pd.DataFrame({'mz':mz,'Intensity':y})
+
         if not focal_fit.empty:
             fits = focal_fit.copy()
             Current_Isotope = get_na_isotope(peptide,z,npeaks=None,mod_dict={})
@@ -1963,6 +1970,7 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                 # print("y/fit_y:", y/fit_y)
 
                 ax.plot( mz, fit_y, '-', alpha=0.5)#label='fit sum N='+str(best_n_curves));
+                fit_data['fit_sum_'+str(nb)] = fit_y
 
                 if residual == True:
                     rlabel=''
@@ -1991,7 +1999,10 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                     if len(deut_spectra) == 1:
                         if (k==0) & (nb==1): fit_kwds.update({'label':'BootFits'})
                         if (nb==0): fit_kwds.update({'label':plot_label})
-                    ax.plot( mz, fit_yk,**fit_kwds)              
+                    ax.plot( mz, fit_yk,**fit_kwds)
+                    fit_data['fit_'+str(k)+'_'+str(nb)] = fit_yk
+        fit_data[sample_id_cols] =s,p,t,r,z
+        all_fit_data = pd.concat([all_fit_data,fit_data],ignore_index=True)
     if len(deut_spectra) == 1:
         ax.set(xlim=(lowermz-3/z,uppermz+9/z))
         if residual: 
@@ -2019,7 +2030,9 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
         except IOError as e:
             print (f"Could not save: {figfile} file is open")  
 
-    return
+    if return_fit_data:
+        return all_fit_data
+    else: return
 
 
 ## Plot metadf as pdf table
