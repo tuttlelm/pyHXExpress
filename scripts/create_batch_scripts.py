@@ -1,4 +1,4 @@
-## Create subprocess python scripts
+## Create python scripts to do a batch run for states in parallel 
 ## This is setup to do a separate run for each sample type found in the metadf file
 ## then run "python3 run_batch_<date>.py
 ## it will create a jumble of text output but will run in parellel speeding things up a bit
