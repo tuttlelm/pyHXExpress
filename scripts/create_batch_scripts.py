@@ -95,7 +95,7 @@ if __name__ == "__main__":
     script_thread = {{}}
     for k,v in scripts.items():
         script_thread[k] = threading.Thread(target=run_script, args=[v])
-        print("value",v)
+        #print("value",v)
 
     for k,v in scripts.items():
         script_thread[k].start()
