@@ -82,6 +82,8 @@ hxex.run_hdx_fits(filtered)
 
 
 ### Create the multiprocessing script that will pool each of the sample scripts
+## based on https://medium.com/@rohitobrai11/multithreading-in-python-running-2-scripts-in-parallel-8258c4635182
+
 mp_script_text = f'''
 import threading
 import subprocess
