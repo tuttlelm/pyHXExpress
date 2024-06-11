@@ -1316,8 +1316,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         for i, ti in enumerate(time_indexes): #range(0,n_time_points): 
             n_time_rep = int(max(deutdata.rep[(deutdata.time_idx==ti)]))
-            timept = int(max(deutdata.time[(deutdata.time_idx==ti)]))
-            if timept == int(config.FullDeut_Time): 
+            timept = max(deutdata.time[(deutdata.time_idx==ti)])
+            if timept == config.FullDeut_Time: 
                 timelabel = 'FullDeut'
             elif timept == 0: timelabel = 'UnDeut'
             else: timelabel = str(timept)+'s'
