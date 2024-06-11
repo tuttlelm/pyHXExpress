@@ -1,5 +1,5 @@
 '''
-pyHXEXPRESS v0.0.100
+pyHXEXPRESS v0.0.120
 
 Copyright 2024 Lisa M Tuttle
 
@@ -337,7 +337,7 @@ def goodseq(seq):
         mass.most_probable_isotopic_composition(sequence=seq)
         return True
     except: 
-        print(f"Sequence {seq} is not defined")
+        #print(f"Sequence {seq} is not defined")
         #exit()
         return False
 
@@ -520,14 +520,18 @@ def get_na_isotope(peptide,charge,npeaks=None,mod_dict={}):
     else: comp = {}
     for key in list(comp):
         pepcomp[key] = comp[key]
-    pepcomp['H'] = pepcomp['H']-count_amides(peptide,count_sc=0.0)
+    pepcomp['Hex']=count_amides(peptide,count_sc=0.0)
+
     #pepcomp = {'H': 53, 'C': 34, 'O': 15, 'N': 7}
     if mod_dict:
-        pkeys = list(pepcomp.keys())
-        tkeys = list(mod_dict.keys())
-        bothkeys = list(set(pkeys) and set(tkeys))
-        for k in bothkeys:
-            pepcomp[k] = pepcomp[k] + mod_dict[k]
+        for key in mod_dict:
+            if key in pepcomp:
+                pepcomp[key] = pepcomp[key] + mod_dict[key]
+        pepcomp = {**pepcomp,**mod_dict}
+
+    if set(['H','Hex']).issubset(pepcomp.keys()): 
+        pepcomp['H'] = pepcomp['H'] - pepcomp['Hex']
+    if 'Hex' in pepcomp.keys(): pepcomp.pop('Hex')
 
     theoretical_isotopic_cluster = isotopic_variants(pepcomp, npeaks=npeaks, charge=charge)
 
@@ -548,7 +552,7 @@ def count_amides (peptide,count_sc=0.0):
         ex_sc += 2*peptide.count(sidechain)
     for sidechain in 'KQN':
         ex_sc += 2*peptide.count(sidechain)
-    n_amides = len(peptide)-proline-config.Nterm_subtract+int(ex_sc*count_sc)
+    n_amides = max(0,len(peptide)-proline-config.Nterm_subtract+int(ex_sc*count_sc))
     return n_amides
 
 
@@ -560,11 +564,17 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     min_pts = config.Max_Pops*3+2 #minimum number of datapoints necessary for max pop fit
     na_buffer = len(get_na_isotope(peptide,charge,mod_dict=mod_dict))//2   
     n_amides = max(count_amides(peptide,count_sc=0.0),min_pts) + na_buffer + padding #include count from Isotopic Envelope
-
-    undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge)
+    undeut_mz = 0.0
+    if len(peptide)>0:
+        undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge)
     #print("undeut",undeut_mz)
+    #print(mod_dict) ##TROUBLESHOOTING
     if mod_dict:
-        undeut_mz += mass.calculate_mass(composition=mod_dict,charge=charge)
+        mod_comp = {}
+        comp_keys = set(list(mod_dict.keys())) - set(['Hex'])
+        for k in comp_keys:
+            mod_comp[k] = mod_dict[k]
+        undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge)
     #print("undeut_mod",undeut_mz)
     #n_deut = np.arange(n_amides+1) #ExMS instead
     #pred_mzs = undeut_mz + (n_deut*1.006277)/charge #ExMS instead
@@ -1207,11 +1217,19 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         try: namide_scale = config.Nex_Max_Scale
         except: namide_scale = 1.2 #instead of using exchangable sidechain fraction to set max_n_amides, just use scale factor
         max_n_amides = count_amides(peptide,count_sc=0.0)*namide_scale #### Might be better way to set this
-        undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge) ####Adjust for mod_dic
-        #print("undeut",undeut_mz)
+        undeut_mz = 0.0
+        if len(peptide)>0:       
+            undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge) ####Adjust for mod_dic
         if mod_dic:
-            undeut_mz += mass.calculate_mass(composition=mod_dic,charge=charge)
-        #print("undeut_mod",undeut_mz)
+            mod_comp = {}
+            if 'Hex' in mod_dic.keys():
+                n_amides += mod_dic['Hex']
+                max_n_amides += mod_dic['Hex']*namide_scale
+            comp_keys = set(list(mod_dic.keys())) - set(['Hex'])
+            for k in comp_keys:
+                mod_comp[k] = mod_dic[k]
+            undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge)
+
         Noise = 0.0
         d_corr = 1.0        
 
