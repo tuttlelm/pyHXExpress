@@ -368,7 +368,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
         if (file[-4:] == 'xlsx') or (file[-3:] == 'xls'):
             ftype = 'excel'
             timepts = pd.read_excel(file,header=None,nrows=1) #get headers
-        elif file[-4:] == 'csv':
+        elif file[-3:] == 'csv':
             ftype = 'csv'
             timepts = pd.read_csv(file,header=None,nrows=1) #get headers
     except IOError as e:
