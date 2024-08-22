@@ -5,7 +5,12 @@ Copyright 2024 Lisa M Tuttle
 
 https://github.com/tuttlelm/pyHXExpress
 
+22Aug2024
+add rss normalization to calc_rss()
+norm fit values before saving as fitparamsdf
+add max_Int to datafits
 '''
+
 #%matplotlib widget 
 import numpy as np, pandas as pd 
 import scipy.stats as stats
@@ -34,7 +39,8 @@ from datetime import datetime
 from collections import Counter
 from Bio import SeqIO
 
-from . import config
+import config
+#from . import config
 
 rng=np.random.default_rng(seed=config.Random_Seed)
 
@@ -173,7 +179,7 @@ def read_metadf(filename):
         print("No file found for spectra list")
         return
 
-def get_metadf():    
+def get_metadf(quiet=False):    
     if config.Read_Spectra_List: 
         metadf = read_metadf(config.Metadf_File)        
     else: 
@@ -255,7 +261,8 @@ def get_metadf():
     if metadf.empty: raise Exception("No data found. Check Data_Type specification and Data_DIR")
     else:
         metadf = metadf.sort_values(['peptide_range','sample','charge',],ignore_index=True) 
-        print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
+        if not quiet:
+            print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
     return metadf
 
 
@@ -609,7 +616,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         focal_data = focal_data.sort_values('Intensity',ascending=False)#.reset_index(drop=True)
         
         if (len(focal_data) > 0):
-            if (len(focal_data) == 1): #assume stick data
+            if len(focal_data) == 1: #assumes stick data 
                 max_Int = focal_data['Intensity'].max()
             elif (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())):
                 max_Int = focal_data['Intensity'].max()
@@ -792,11 +799,13 @@ def n_binom_isotope( bins, *params ): #allfracsversion
     truncated = np.power( 10.0, log_scaler ) * np.sum( poissons, axis=0, )[0:bins+1]
     return truncated 
 
-def calc_rss( true, pred,yerr_systematic=0.0 ):
+def calc_rss( true, pred,yerr_systematic=0.0,norm=True ):
     '''
     calculate the residual squared sum
     '''
-    return np.sum( (pred-true)**2 + yerr_systematic**2 )
+    if norm: n = len(true)
+    else: n = 1.0
+    return np.sum( (pred-true)**2 + yerr_systematic**2 ) / n
 
 def get_params(*fit, sort = False, norm = False, unpack = True):
     '''
@@ -1070,7 +1079,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     ## generalize to preset column headers corresponding to max_pops
     ## Columns may change still depending on X_features used for pops prediction
     data_fit_columns = [ 'data_id','sample', 'peptide', 'peptide_range','start_seq','end_seq','charge', 'time','time_idx', 'rep', 
-                        'centroid', 'env_width', 'env_symm', 'max_namides','UN_TD_corr','fit_pops','p-value']
+                        'max_Int','centroid', 'env_width', 'env_symm', 'max_namides','UN_TD_corr','fit_pops','p-value']
     for imp in range(1,max_pops+1):
         data_fit_columns += ['centroid_'+str(imp), 'Dabs_'+str(imp),'Dabs_std_'+str(imp),'pop_'+str(imp), 'pop_std_'+str(imp), ]
     #                         'mu_'+str(imp), 'Nex_'+str(imp), 'Nex_std_'+str(imp)]
@@ -1117,9 +1126,9 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             if config.Test_Data:
                 config.Keep_Raw == True
                 deutdata, rawdata, solution = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw)
-            elif (user_deutdata.empty) or (config.Keep_Raw):
-                if update_deutdata == True: #only peakpick if necessary
-                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
+            elif (config.Keep_Raw): 
+                if (user_deutdata.empty) or (update_deutdata == True): #only peakpick if necessary
+                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)                   
             else: 
                 if (user_deutdata.empty) or (update_deutdata == True):
                     deutdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
@@ -1342,11 +1351,13 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 
                 mz=np.array(focal_data.mz.copy())
                 y=np.array(focal_data.Intensity.copy())
+                
                 #x=np.full(y.shape,len(y))
 
                 env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max() # 0 -> assym, 1 -> symm  
                                                             # want 0 to be 2x and 1 to be 1x -> y = -1*x + 2
 
+                max_y = np.max(y) #maximum Intensity, can filter after 
                 ynorm_factor = np.sum(y)
                 y_norm = y / ynorm_factor # 50secs with vs 2 mins without normalization
                 
@@ -1359,9 +1370,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     scale_y = 1.0
 
                 n_bins = len(y)-1
-                
-                max_y = np.max(y) #for parameter initialization
-                
+                                                
                 centroid_j = sum(mz*y)/sum(y) #centroid from unfit picked peaks
 
                 #data_fit =pd.DataFrame({'time':[timept],'rep':[j],'centroid':[centroid_j]})
@@ -1370,6 +1379,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 data_fit.loc[0,'time'] = timept
                 data_fit.loc[0,'time_idx'] = ti
                 data_fit.loc[0,'rep'] = j
+                data_fit.loc[0,'max_Int'] = max_y
                 data_fit.loc[0,'centroid'] = centroid_j
                 data_fit.loc[0,'UN_TD_corr'] = d_corr 
                 data_fit.loc[0,'sample'] = sample
@@ -1456,6 +1466,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     fitparamsdf['ncurves'] = n_curves
                     fitparamsdf['nboot'] = 0
                     fitparamsdf['rss'] = rss
+                    fit = get_params(*fit,norm=True,unpack=False) #make sure populations are normalized before saving outputs 
                     fitparamsdf['Fit_Params'] = (' ').join(map(str,fit))
                     if config.Test_Data:
                                 fitparamsdf['solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0] 
@@ -1629,7 +1640,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
                     if config.Keep_Raw:
                         ax[i,j-1].plot( focal_raw.mz, focal_raw.Intensity, color='#999999' ) #ax[i,j-1]
-                    else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
+                    ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1] # TROUBLESHOOTING #else: 
                     
                     ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
                     ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2,zorder=10)
