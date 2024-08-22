@@ -274,7 +274,7 @@ def makelist(thing):
     return thing
 
 def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
-                  charge=None,index=None,timept=None,timeidx=None,peptides=None,rep=None,data_ids=None,quiet=True):
+                  charge=None,index=None,timept=None,timeidx=None,peptides=None,rep=None,data_ids=None,s_ids=None,quiet=True):
     ''' Utility function to Filter metadf (or any other dataframe) based on user specified values
         samples = ['sample1','sample2'] or 'sample1'
         range = [start,end]
@@ -331,6 +331,14 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
     if not filtered.empty and (rep or rep == 0): 
         try: filtered = filtered[filtered['rep'].isin(makelist(rep))]
         except: print("no column named rep")
+    
+    if not filtered.empty and s_ids:
+        s_ids = makelist(s_ids)
+        for s_id in s_ids:
+            d, t, r = [float(s) for s in s_id.split('-')]
+            try: 
+                filtered = filtered[(filtered['data_id'] == d) & (filtered['time'] == t) & (filtered['rep']==r)]
+            except: print("no s_id",s_id)
       
     if quiet == False: 
         print("Dataframe filtered to",len(filtered),"from",len(metadf),"total entries")
