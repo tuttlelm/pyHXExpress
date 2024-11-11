@@ -396,6 +396,89 @@ def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=N
 
     return #fig
 
+
+def choose_fits(hdxm,state,use_time,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2pops',z='50',max_sd=0.25,return_fits=False):
+    '''
+    Based on the fixed1pop and fixed2pop fits and their errors, decide what the approprate number of fit populations is
+    use bimodal if justified or fallback to the 'avg' value from teh fixed1pop (not a true average but what we can measure)
+    Outputs are the plot and the fit values if return_fits = True
+
+    hdxm:       the HDXMeasurement object from pyHDX (generated from other utility functions in hxed_utils)
+    use_time:   the time value for the comparison
+    z:          the z_value confidence % to use (e.g. value +/- z_value[z]*sd is solution with z% confidence)
+                this is a little hand wavey since errors aren't likely guassian
+    max_sd:     falls back to 'avg' fit if either pop1 or pop2 errors are larger than this cutoff 
+    '''
+    z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576} #confidence intervals multiplier 
+    rfu = defaultdict(dict)
+
+    rfu['center']['p1'] = hdxm_hxex[fixed2_proj][state+'_pop1'].rfu_residues[use_time]
+    rfu['center']['p2'] = hdxm_hxex[fixed2_proj][state+'_pop2'].rfu_residues[use_time]
+    rfu['center']['avg'] = hdxm_hxex[avg_proj][state+'_pop1'].rfu_residues[use_time]
+
+    rfu['sd']['p1'] = hdxm_hxex[fixed2_proj][state+'_pop1'].rfu_residues_sd[use_time]
+    rfu['sd']['p2'] = hdxm_hxex[fixed2_proj][state+'_pop2'].rfu_residues_sd[use_time]
+    rfu['sd']['avg'] = hdxm_hxex[avg_proj][state+'_pop1'].rfu_residues_sd[use_time]
+
+    resi = rfu['center']['p1'].index.union(rfu['center']['p2'].index).union(rfu['center']['avg'].index)
+    for k in rfu['center'].keys():
+        rfu['center'][k] = rfu['center'][k].reindex(resi)
+        rfu['sd'][k] = rfu['sd'][k].reindex(resi)
+
+    rfu['low']['p1'] = rfu['center']['p1'] - z_value[z]*rfu['sd']['p1']
+    rfu['low']['p2'] = rfu['center']['p2'] - z_value[z]*rfu['sd']['p2']
+    rfu['low']['avg'] = rfu['center']['avg'] - z_value[z]*rfu['sd']['avg']
+
+    rfu['high']['p1'] = rfu['center']['p1'] + z_value[z]*rfu['sd']['p1']
+    rfu['high']['p2'] = rfu['center']['p2'] + z_value[z]*rfu['sd']['p2']
+    rfu['high']['avg'] = rfu['center']['avg'] + z_value[z]*rfu['sd']['avg']
+
+    sep = (rfu['center']['p2'] - rfu['center']['p1']) - (rfu['sd']['p2'] + rfu['sd']['p1'])*z_value[z]
+
+    pop1 = (rfu['center']['p2'] - rfu['center']['avg'])/(rfu['center']['p2'] - rfu['center']['p1'])
+    pop1 = np.where(sep > 0, pop1, 1.0)
+    pop1 = np.where(rfu['center']['p1'].isna(),np.nan,pop1)
+    pop1 = pop1.clip(0,1)
+
+    rfu_p1 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd), np.nan,rfu['center']['p1'])
+    rfu_p2 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd), np.nan,rfu['center']['p2'])
+    rfu_avg = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd),rfu['center']['avg'],np.nan)
+
+
+    fig, axes = pplt.subplots(nrows=1,ncols=1,  axwidth="200mm", sharey=False, refaspect=5,)
+
+    axes.line(resi,rfu['center']['p1'],fadedata=(rfu['low']['p1'],rfu['high']['p1']),labels="RFU pop1",color='magenta')
+    axes.line(resi,rfu['center']['p2'],fadedata=(rfu['low']['p2'],rfu['high']['p2']),labels="RFU pop2",color='cyan')
+    axes.line(resi,rfu['center']['avg'],fadedata=(rfu['low']['avg'],rfu['high']['avg']),labels="RFU avg",color='grey')
+
+    marker_size = pop1.copy()
+    marker_size[np.isnan(marker_size)] = 0
+    axes.scatter(resi,rfu_p1,labels="Fit pop1",color='darkred',s=(marker_size)**2,smin=5,smax=80,)
+    axes.scatter(resi,rfu_p2,labels="Fit pop2",color='green',s=2*((1-marker_size)**2),smin=5,smax=80,)
+    axes.scatter(resi,rfu_avg,labels="Fit AVG",edgecolors='black',facecolors='none',markeredgewidth=1.5,zorder=10)
+
+    axes.format(ylim=(0,1),xlim=(0,max(resi)))
+    axes.format(ylabel="fractional D-uptake")
+    axes.format(xlabel='Residue')
+    axes.format(title=state+' '+str(float(use_time))+'s',titleloc= 'lower right',)
+    axes.legend(loc='top',ncols=3);
+
+    if return_fits:
+        fits = pd.concat([pd.Series(rfu['center']['p1'],index=resi,name='RFU pop1'),
+                          pd.Series(rfu_p1,index=resi,name='Fit pop1'),
+                          pd.Series(rfu['sd']['p1'],index=resi,name='pop1_sd'),
+                          pd.Series(rfu['center']['p2'],index=resi,name='RFU pop2'),
+                          pd.Series(rfu_p2,index=resi,name='pop2'),
+                          pd.Series(rfu['sd']['p2'],index=resi,name='pop2_sd'),
+                          pd.Series(rfu['center']['avg'],index=resi,name='RFU avg'),
+                          pd.Series(rfu_avg,index=resi,name='Fit AVG'),
+                          pd.Series(rfu['sd']['avg'],index=resi,name='avg_sd')],axis=1)
+        return fits
+    else: 
+        return
+
+
+
 def filter_range(hdxm,peprange,startcol='start',endcol='end',nterm_exch=2):
     df = hdxm.copy()
     peprange = [peprange] if not isinstance(peprange,list) else peprange
