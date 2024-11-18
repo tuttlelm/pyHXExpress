@@ -285,7 +285,8 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         timeidx = [0,1,...,]
         peptides = ['PEPTIDESEQ','PEPITYPEPTIDE'] or 'PEPTIDESEQ'
         rep = [1,2,3] or 1
-        data_id = [0,1,...]
+        data_ids = [0,1,...]
+        s_ids = [123-4-1] #<data_id>-<time>-<rep>
     '''
 
     filtered = metadf.copy()
@@ -334,11 +335,13 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
     
     if not filtered.empty and s_ids:
         s_ids = makelist(s_ids)
+        sidx = []
         for s_id in s_ids:
             d, t, r = [float(s) for s in s_id.split('-')]
             try: 
-                filtered = filtered[(filtered['data_id'] == d) & (filtered['time'] == t) & (filtered['rep']==r)]
-            except: print("no s_id",s_id)
+                sidx += filtered[(filtered['data_id'] == d) & (filtered['time'] == t) & (filtered['rep']==r)].index.tolist()
+            except: print("no s_id",s_id)    
+        filtered = filtered.iloc[sidx]        
       
     if quiet == False: 
         print("Dataframe filtered to",len(filtered),"from",len(metadf),"total entries")

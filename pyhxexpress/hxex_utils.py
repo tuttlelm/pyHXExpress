@@ -399,7 +399,7 @@ def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=N
     return #fig
 
 
-def choose_fits(hdxm,state,use_time,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2pops',z='50',max_sd=0.25,plot=True,plotpop=True,return_fits=False):
+def choose_fits(hdxm,state,use_time,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2pops',z='50',min_pop=0.05,max_sd=0.25,plot=True,plotpop=True,return_fits=False):
     '''
     Based on the fixed1pop and fixed2pop fits and their errors, decide what the approprate number of fit populations is
     use bimodal if justified or fallback to the 'avg' value from teh fixed1pop (not a true average but what we can measure)
@@ -445,9 +445,10 @@ def choose_fits(hdxm,state,use_time,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2
     pop1 = pop1.clip(0,1)
     #pop1 = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),np.nan,pop1) #if missing pop1/2 fits use avg
 
-    rfu_p1 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd), np.nan,rfu['center']['p1'])
-    rfu_p2 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd), np.nan,rfu['center']['p2'])
-    rfu_avg = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd),rfu['center']['avg'],np.nan)
+    rfu_p1 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | (pop1 < min_pop), np.nan,rfu['center']['p1'])
+    rfu_p2 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | (pop1 > 1 - min_pop), np.nan,rfu['center']['p2'])
+    rfu_avg = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | 
+                       (pop1 < min_pop) | (pop1 > 1 - min_pop),rfu['center']['avg'],np.nan)
     rfu_avg = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),rfu['center']['avg'],rfu_avg) #if missing pop1/2 fits use avg
     
 
@@ -476,7 +477,7 @@ def choose_fits(hdxm,state,use_time,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2
         if plotpop:
             paxes.scatter(resi,1-pop1,label="more exchanged",s=15,edgecolors='darkred',facecolors='magenta',linewidth=1)
             paxes.scatter(resi,pop1,label="more protected",s=15,edgecolors='green',facecolors='cyan4',linewidth=1)
-            paxes.format(xlim=(0,max(resi)),ylim=(0,1))
+            paxes.format(xlim=(0,max(resi)),ylim=(0,1),ylocator=[0,0.25,0.5,0.75,1.0])
             paxes.format(ylabel="Population")
             paxes.format(xlabel='Residue')
 
