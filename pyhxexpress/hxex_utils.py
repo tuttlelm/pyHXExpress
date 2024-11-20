@@ -99,14 +99,17 @@ def convert_to_uptakedf(datafit,proj=None):
 
 
 
-def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein'):
+def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein',dummyTD = '1e6s', keepTD = False):
     ### Function to convert data table exported from HDExaminer to the processed DynamX format pyHDX expects
-    ### this will leave any extra columns, but will chop out the MAX time points after processing
+    ### this will leave any extra columns
+    ### If keepTD = false, this will chop out the MAX time points after processing
+    ### if keepTD = True, TD timepoins will be kept with exposure = dummyTDs
     
     drop_first=2
 
     def _time_to_sec(tp,tpunit):
         return  tp * np.power(60.0,'smh'.find(tpunit[0])) 
+    dummyTDs = _time_to_sec(float(dummyTD[:-1]),dummyTD[-1])
     if '# Deut' in data.columns:
         data = data.rename(columns={"# Deut":"#D"})
         data['#D'] = data['#D'].fillna(0.0)
@@ -116,11 +119,11 @@ def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein'):
         data['%D'] = data['%D'].fillna(0.0)
         data['%D'] = data['%D'].astype(float)
     if 'Deut Time' in data.columns:
-        data.loc[data['Deut Time'] == 'FD','Deut Time'] = '1e6s'
+        data.loc[data['Deut Time'] == 'FD','Deut Time'] = dummyTD
         data['time unit'] = data['Deut Time'].str[-1]
         data['Deut Time (sec)'] = data['Deut Time'].str[:-1].astype(float)
         data['Deut Time (sec)'] = data.apply(lambda x: _time_to_sec(tp=x['Deut Time (sec)'],tpunit=x['time unit']),axis=1)
-        data.loc[data['Deut Time (sec)'] == 1e6,'Deut Time (sec)'] = 'MAX'
+        data.loc[data['Deut Time (sec)'] == dummyTDs,'Deut Time (sec)'] = 'MAX'
     if 'Protein' not in data.columns:
         data['Protein'] = protein
 
@@ -199,7 +202,10 @@ def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein'):
     data['uptake_corrected'] = data["rfu"]*data['maxuptake']
 
     
-    data = data[data["exposure"] != "MAX"]
+    if keepTD:
+        data.loc[data["exposure"] == "MAX","exposure"] = dummyTDs
+    else:
+        data = data[data["exposure"] != "MAX"]
     data = data[data["fd_uptake"] != 0]
     data = data[~data["uptake"].isna()]
     data["exposure"]=data["exposure"].astype(float)
