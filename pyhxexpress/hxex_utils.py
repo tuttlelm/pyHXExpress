@@ -254,7 +254,7 @@ def plot_bar(ax, x, z, cmap, norm, height=1,**kwargs):
 
 from pyhdx.plot import peptide_coverage
 
-def plot_coverage(hdxm,states=None,times=None,savepath=None,peprange=None,color_field='rfu'):
+def plot_coverage(hdxm,states=None,times=None,savepath=None,svg=False,peprange=None,color_field='rfu'):
     ## Coverage plots
     use_hdxm = hdxm.copy()
     if states is None:
@@ -262,7 +262,7 @@ def plot_coverage(hdxm,states=None,times=None,savepath=None,peprange=None,color_
     if times is None:
         times = sorted(use_hdxm[states[0]].timepoints)
 
-    fig, axes = pplt.subplots(nrows=len(states),ncols=len(times),  axwidth="200mm", sharey=False, refaspect=2,)
+    fig, axes = pplt.subplots(nrows=len(states),ncols=len(times),  axwidth="180mm", sharey=False, refaspect=2,)
 
     for j,mutant in enumerate(states):
         for i, use_time in enumerate(times):  
@@ -271,10 +271,13 @@ def plot_coverage(hdxm,states=None,times=None,savepath=None,peprange=None,color_
             if peprange: filtdf = filter_range(filtdf,peprange)
             peptide_coverage(axes[j,i], filtdf,  color_field=color_field, cbar=True,linewidth=0.1)
             t = axes[j,i].set_title(f'{mutant} Peptides t = {int(use_time)}s')
-            l = axes[j,i].set_xlabel('Residue number')
+            l = axes[j,i].set_xlabel('Residue')
     
     if savepath:
-        fig.savefig(savepath,format='pdf',dpi=600)
+        if svg:
+            fig.savefig(savepath,format='svg')
+        else:
+            fig.savefig(savepath,format='pdf',dpi=600)
         
     return
 
@@ -285,7 +288,7 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
         cmap(np.linspace(minval, maxval, n)))
     return new_cmap
 
-def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=None,legendcols=5,plotZero=True,TD_time=1e6,UN_time=0):
+def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=None,svg=False,legendcols=5,plotZero=True,TD_time=1e6,UN_time=0):
     # Prolines: 7,12,15,19,38,45,50,51,57,85,124,129,147,154,159,166,172,
     if colors is None:
         colors="#000000 #66C2A5 #56B4E9 #7570B3 #E7298A".split()
@@ -320,9 +323,9 @@ def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=N
 
     for i, use_time in enumerate(times):
         if use_time == TD_time:
-            time_label = 'TD'
+            time_label = 'FullDeut'
         elif use_time == UN_time:
-            time_label = 'UN'
+            time_label = 'UnDeut'
         else:
             time_label = str(float(use_time))+'s'
 
@@ -402,27 +405,30 @@ def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=N
     
     #axes.format(xlim=(0,180))
 
-    axes[i*nset+2].format(xlabel="Residue number")
-
+    axes[i*nset+2].format(xlabel="Residue")
+    fig.set_facecolor('white')
     # save_path = os.path.join(project_dir,'B5_phospho_2popFiltShade_RFU_residueavg_plots_'+date+'.pdf')
     if savepath:
-        fig.savefig(savepath,format='pdf',dpi=600)
+        if svg:
+            fig.savefig(savepath,format='svg',)
+        else:
+            fig.savefig(savepath,format='pdf',dpi=600)
 
     return #fig
 
 
 def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixed2pops',z='50',
-                    min_pop=0.05,max_sd=0.25,plot=True,plotpop=True,return_fits=False,TD_time=1e6,UN_time=0,savepath=None):
+                    min_pop=0.05,max_sd=0.25,plot=True,plotpop=True,return_fits=False,TD_time=1e6,UN_time=0,savepath=None,svg=False):
     '''
     Based on the fixed1pop and fixed2pop fits and their errors, decide what the approprate number of fit populations is
     use bimodal if justified or fallback to the 'avg' value from teh fixed1pop (not a true average but what we can measure)
     Outputs are the plot and the fit values if return_fits = True
 
-    hdxm:       the HDXMeasurement object from pyHDX (generated from other utility functions in hxed_utils)
-    use_time:   the time value for the comparison
-    z:          the z_value confidence % to use (e.g. value +/- z_value[z]*sd is solution with z% confidence)
-                this is a little hand wavey since errors aren't likely guassian
-    max_sd:     falls back to 'avg' fit if either pop1 or pop2 errors are larger than this cutoff 
+    hdxm:    the HDXMeasurement object from pyHDX (generated from other utility functions in hxed_utils)
+    times:   the time value for the comparison
+    z:       the z_value confidence % to use (e.g. value +/- z_value[z]*sd is solution with z% confidence)
+             this is a little hand wavey since errors aren't likely guassian
+    max_sd:  falls back to 'avg' fit if either pop1 or pop2 errors are larger than this cutoff 
     '''
     z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576} #confidence intervals multiplier 
     all_fits = defaultdict(dict)
@@ -518,22 +524,25 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
             axes[i*nset].scatter(resi,rfu_p2,labels="Fit pop2",color='darkred',s=2*((1-marker_size)**2),smin=5,smax=80,) #more exchanged
             axes[i*nset].scatter(resi,rfu_avg,labels="Fit AVG",edgecolors='black',facecolors='none',markeredgewidth=1.5,zorder=10)
 
-            axes[i*nset].format(ylim=(0,1.1),xlim=(0,max(resi)))
+            axes[i*nset].format(ylim=(0,1.19),xlim=(0,max(resi)),ylocator=[0,0.25,0.5,0.75,1.0])
             axes[i*nset].format(ylabel="fractional D-uptake")
             axes[i*nset].format(xlabel='')
             #axes[i*nset].format(title=state+' '+time_label,titleloc= 'lower right',)
-            axes[i*nset].text( max(resi)-3,1.15,state+' '+time_label,horizontalalignment='right',verticalalignment='bottom') #units of axes
+            axes[i*nset].text( max(resi)-3,1.25,state+' '+time_label,horizontalalignment='right',verticalalignment='bottom') #units of axes
             #axes[0].legend(loc='top',ncols=3);
             axes[i*nset].yaxis.set_label_coords(-0.049,0.5)
         
             if plotpop:
                 #axes[i*nset].format(xtickloc='none')                
                 axes[i*nset].format(xlabel="",xtickrange=(-1,-1))
-                axes[i*nset+1].scatter(resi,1-pop1,label="more exchanged",s=15,edgecolors='darkred',facecolors='magenta',linewidth=1)
-                axes[i*nset+1].scatter(resi,pop1,label="more protected",s=15,edgecolors='green',facecolors='cyan4',linewidth=1)
-                axes[i*nset+1].format(xlim=(0,max(resi)),ylim=(0,1),ylocator=[0,0.25,0.5,0.75,1.0])
+                pop1_filt = np.where(np.isnan(rfu_avg),pop1,np.nan)
+                axes[i*nset+1].scatter(resi,1-pop1,label="more exchanged",s=15,edgecolors='darkred',facecolors='white',linewidth=1)
+                axes[i*nset+1].scatter(resi,1-pop1_filt,label="more exchanged",s=15,edgecolors='darkred',facecolors='magenta',linewidth=1)
+                axes[i*nset+1].scatter(resi,pop1,label="more protected",s=15,edgecolors='green',facecolors='white',linewidth=1)
+                axes[i*nset+1].scatter(resi,pop1_filt,label="more protected",s=15,edgecolors='green',facecolors='cyan4',linewidth=1)
+                axes[i*nset+1].format(xlim=(0,max(resi)),ylim=(0,1.05),ylocator=[0,0.25,0.5,0.75,1.0])
                 axes[i*nset+1].format(ylabel="Population")
-                axes[i*nset+1].format(xlabel='Residue number')
+                axes[i*nset+1].format(xlabel='Residue')
                 axes[i*nset+1].yaxis.set_label_coords(-0.049,0.5)
 
         if return_fits:
@@ -556,16 +565,206 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
             all_fits[use_time] = fits
 
     if plot:
-        axes[-1].format(xlabel='Residue number')
+        axes[-1].format(xlabel='Residue')
         axes[0].legend(ncols=3,edgecolor='white',bbox_to_anchor=(0.5,1.2),loc='center',); #loc='top',
         
         fig.set_facecolor('white')
         if savepath:
-            fig.savefig(savepath,format='pdf',dpi=600)
+            if svg:
+                fig.savefig(savepath,format='svg')
+            else: 
+                fig.savefig(savepath,format='pdf',dpi=600)
     if return_fits:
         return all_fits
     else: 
         return
+
+def plot_comparison(fits,states=None,times=None,colors=None,savepath=None,svg=False,TD_time=1e6,UN_time=0):
+    ''' 
+    fits is a defaultdict as output from choose_fits(), fits[state][time]
+    '''
+    if states is None:
+        states = [k for k in fits.keys()]
+    if times is None:
+        times = [k for k in fits[states[0]].keys()]
+    if colors is None:
+        colors="#000000 #66C2A5 #56B4E9 #7570B3 #E7298A".split()
+    
+    hspace = [1.0,6.0]*(len(times)-1)+[1.0]
+    fig, axes = pplt.subplots(nrows=2*len(times),ncols=1,  axwidth="180mm", sharex=False, sharey=False, refaspect=5,hratios=[2,1]*len(times),hspace=hspace)
+
+    for k,use_time in enumerate(times):
+
+        if use_time == TD_time:
+            time_label = 'FullDeut'
+        elif use_time == UN_time:
+            time_label = 'UnDeut'
+        else:
+            time_label = str(float(use_time))+'s'
+        for i,state in enumerate(states):
+            axes[2*k].line(fits[state][use_time].index,fits[state][use_time]['Fit_pop1'],fadedata=(fits[state][use_time]['pop1_low'],fits[state][use_time]['pop1_high']),label=state,color=colors[i])
+            axes[2*k].line(fits[state][use_time].index,fits[state][use_time]['Fit_pop2'],fadedata=(fits[state][use_time]['pop2_low'],fits[state][use_time]['pop2_high']),label=None,color=colors[i])
+            axes[2*k].scatter(fits[state][use_time].index,fits[state][use_time]['Fit_AVG'],fadedata=(fits[state][use_time]['avg_low'],fits[state][use_time]['avg_high']),s=10,label='Avg',edgecolors=colors[i],facecolors='none',linewidth=1)
+            #paxes.scatter(fits[state][use_time].index,1-fits[state][use_time]['Frac_pop1'],label=state+" more exchanged",s=15,colors=colors[i],linewidth=1)
+            pop1_filt = np.where(np.isnan(fits[state][use_time]['Fit_AVG']),fits[state][use_time]['Frac_pop1'],np.nan)
+            axes[2*k+1].scatter(fits[state][use_time].index,fits[state][use_time]['Frac_pop1'],label=state+" less exchanged",s=15,edgecolors=colors[i],facecolors='white',linewidth=1,)#alpha=0.2)
+            axes[2*k+1].scatter(fits[state][use_time].index,pop1_filt,label=state+" less exchanged",s=15,facecolors=colors[i],linewidth=1,)#alpha=0.2)
+        #axes.text( 2,1.20,time_label,horizontalalignment='left',verticalalignment='bottom') #units of axes  ##above left
+        axes[2*k].text( max(fits[state][use_time].index)-3,1.25,time_label,horizontalalignment='right',verticalalignment='bottom') #units of axes  ##above right
+        #axes.text( max(fits[state][use_time].index)-3,1.12,time_label,horizontalalignment='right',verticalalignment='top') #units of axes ##inset top right
+        axes[2*k].yaxis.set_label_coords(-0.048,0.5)
+        axes[2*k+1].yaxis.set_label_coords(-0.048,0.5)
+        axes[2*k].format(ylim=(0,1.19),xlim=(0,max(fits[state][use_time].index)),ylocator=[0,0.25,0.5,0.75,1.0])
+        #paxes.format(title=time_label,titleloc= 'lower right',)
+        axes[2*k].format(ylabel="fractional D-uptake",xlabel="",xtickrange=(-1,-1))
+        #axes[2*k].format(xlabel='Residue')
+        handles,labels=axes[2*k].get_legend_handles_labels()
+        klabel = [kk*2 for kk in np.arange(len([k for k in fits.keys()]))]
+        # axes.legend(handles=[handles[i] for i in klabel],ncols=3, bbox_to_anchor=(1.0,1.2),loc='upper right', #units fraction of figure
+        #             frame=True,edgecolor='white',facecolor='white',framealpha=0.8); #loc='top',    loc=(0,1)
+        axes[2*k].legend(handles=[handles[j] for j in klabel],ncols=len(states), bbox_to_anchor=(0.5,1.1),loc='center', #units fraction of figure
+                    frame=True,edgecolor='white',facecolor='white',framealpha=0.8); #loc='top',    loc=(0,1)
+        
+        axes[2*k+1].format(xlim=(0,max(fits[state][use_time].index)),ylim=(0.0,1.05))
+        axes[2*k+1].format(ylabel="Population\n(protected)",ylocator=[0,0.25,0.5,0.75,1.0])
+        axes[2*k+1].format(xlabel='Residue')
+        #fig.suptitle("Big title woo")
+        #paxes.format(title='Population of more \nexchanged state',titleloc='lr')
+        #axes.legend(loc='top')
+    fig.set_facecolor('white')
+
+    if savepath:
+        if svg:
+            fig.savefig(savepath,format='svg')
+        else:
+            fig.savefig(savepath,format='pdf',dpi=600)
+
+
+    return
+
+
+def plot_resred(hdxm,states=None,times=None,seq=None,savepath=None,svg=False,plotZero=True,TD_time=1e6,UN_time=0):
+    '''
+    Just plot the redundancy and resolution color bars for the specified times and states
+        (note that all times should have the same red/res if coming out of the hdxm without further peptide filtering)
+    '''
+
+    if states is None:
+        states = list(hdxm.keys())
+    if times is None:
+        times = sorted(hdxm[states[0]].timepoints)
+    if not plotZero:
+        times.remove(0)
+    
+    z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576} #confidence intervals multiplier 
+  
+    nset = 2 # redundancy, resolution 
+    ncols = 20
+    nrows = len(times)*len(states)*nset
+    nfigs = nrows
+    array=[]
+    for i in range(1,nfigs+1):
+        array += [np.repeat(i,ncols)]# [[i,i]]
+    hratios = [1,1]*len(times)*len(states)
+
+    fig, axes = pplt.subplots(array,  axheight="4mm",axwidth="180mm",  #refaspect=10,
+                                wspace=(0), hspace=([0.3,4.0]*(len(times)*len(states)-1)+[0.3]),
+                                sharex=False, sharey=False, hratios=hratios)
+    
+    vmin = 0
+    vmax = 20
+    red_scale = 2
+    kwargs = dict(levels=pplt.arange(0, vmax, 1),) #extendsize=2.5, extendrect=True)
+    res_kwargs = dict(levels=pplt.arange(0, vmax, 1),)
+
+    k=0
+    for i, use_time in enumerate(times):
+        if use_time == TD_time:
+            time_label = 'FullDeut'
+        elif use_time == UN_time:
+            time_label = 'UnDeut'
+        else:
+            time_label = str(float(use_time))+'s'
+
+        for j,mutant in enumerate(states):
+            time_idx = np.where(hdxm[mutant].timepoints == use_time)[0][0]
+
+            x_res = hdxm[mutant][time_idx].r_number
+
+        
+            redundancy = hdxm[mutant].coverage.X.sum(axis=0).astype(float)
+            resolution = np.repeat(hdxm[mutant].coverage.block_length, hdxm[mutant].coverage.block_length)
+            resolution = resolution.astype(float)
+            resolution[redundancy == 0] = np.nan
+            redundancy[redundancy == 0] = np.nan
+
+            if seq is not None:
+                if isinstance(seq,dict):
+                    seq = seq[mutant]
+                pro_index = [index+1 for index,s in enumerate(seq) if (s=="P")]
+                pro_index = sorted(set(pro_index) & set(hdxm[mutant].coverage.r_number))
+                redundancy = pd.Series(redundancy,index = hdxm[mutant].coverage.r_number)
+                resolution = pd.Series(resolution,index = hdxm[mutant].coverage.r_number)
+                redundancy[pro_index] = np.nan
+                resolution[pro_index] = np.nan
+
+            #print("resolution",resolution)
+            res_cmap = cc.cm['CET_L4_r'].copy() #.set_under() .set_over()
+            res_cmap = truncate_colormap(res_cmap,0,0.7)
+            # res_cmap = cc.cm['coolwarm'].copy()
+            # res_cmap = truncate_colormap(res_cmap,0,1.0)
+            res_cmap.set_bad(color='k')
+            red_cmap = cc.cm['CET_D1A_r'].copy()
+            red_cmap = truncate_colormap(red_cmap,0.1,0.9)
+            red_cmap.set_bad(color='k')
+
+            red = plot_bar(axes[k*nset+0],hdxm[states[0]].coverage.r_number,redundancy,
+                    red_cmap,pplt.Norm("linear", vmin=vmin, vmax=vmax*red_scale),height=1.0,**kwargs)
+            axes[k*nset+0].format(xtickrange=(-2,-1),title=mutant+', '+time_label)
+            res = plot_bar(axes[k*nset+1],hdxm[states[0]].coverage.r_number,resolution, 
+                    res_cmap,pplt.Norm("linear", vmin=vmin, vmax=vmax),height=1.0,**res_kwargs)               
+
+            axes[k*nset+0].set_ylabel("red.",rotation=0,)#loc='center',labelpad=10)
+            axes[k*nset+0].yaxis.set_label_coords(-.02,-.05)
+            axes[k*nset+0].format(xtickloc='none')
+            axes[k*nset+1].set_ylabel("res.",rotation=0,)#loc='center',labelpad=10)
+            axes[k*nset+1].yaxis.set_label_coords(-.02,-.05)
+            #print("k time state",k,use_time,mutant)
+            k += 1
+
+    #need to implement https://proplot.readthedocs.io/en/latest/subplots.html?highlight=spacing#Spacing-and-tight-layout
+    
+    sm = mpl.cm.ScalarMappable(cmap= mpl.colors.ListedColormap([res_cmap.get_bad()]))
+
+    cbar_width = 0.4
+    gap = 1
+    cols = [[1,int(ncols*cbar_width)], 
+                [int(ncols*cbar_width)+1+gap,int(ncols*cbar_width*2)+1], 
+                [int(ncols*cbar_width*2)+2+gap,ncols]]
+
+    fig.colorbar(red, label="Redundancy (peptides including replicates)",width=0.1,pad=1.5,
+                 loc='b',length=1.0,col=cols[0],ticks=np.arange(0, vmax+1, 5))# **kwargs)
+    fig.colorbar(res, label="Resolution (residues)",width=0.1,
+                 loc='b',length=1.0,col=cols[1],ticks=np.arange(0, vmax+1, 5))# **kwargs)
+    pcb = fig.colorbar(sm,width=0.1,loc='b',col=cols[2],length=0.1,ticks=[],)
+    pcb.set_label(label="No Coverage\nor Proline",labelpad=8)
+    
+    #axes[0].legend(loc="t", ncols=legendcols)
+    axes.format(ylim=(0,1.1),)#xgrid=True,ygrid=True,ytickrange=(0,1.1))
+    
+    #axes.format(xlim=(0,180))
+    fig.set_facecolor('white')
+    axes[-1].format(xlabel="Residue")
+
+    # save_path = os.path.join(project_dir,'B5_phospho_2popFiltShade_RFU_residueavg_plots_'+date+'.pdf')
+    if savepath:
+        if svg:
+            fig.savefig(savepath,format='svg')
+        else:
+            fig.savefig(savepath,format='pdf',dpi=600)
+
+    return #fig
+
 
 def filter_range(hdxm,peprange,startcol='start',endcol='end',nterm_exch=2):
     df = hdxm.copy()
@@ -629,9 +828,10 @@ def collate_pdfs(pdf_dir,project=None,samples=None,save_dir=None,addlabel=True):
     if save_dir is None: save_dir = pdf_dir
 
     pdf_info[['start_res','end_res']] = ''
-    pdf_info['start_res'] = pdf_info['file'].str[:-4].str.split('-',n=1,).str[0].str[-4:].astype('Int64')
-    pdf_info['end_res'] = pdf_info['file'].str[:-4].str.split('-',n=1,).str[1].str[0:4].astype('Int64')
-    pdf_info['charge'] = pdf_info['file'].str[:-4].str.split('_').str[-3].str[1:].astype('Int64')
+    #print("pdf_info['file']",pdf_info['file'])
+    pdf_info['start_res'] = pdf_info['file'].str[:-4].str.split('-',n=1,).str[0].str[-4:].apply(pd.to_numeric,errors='coerce').astype('Int64')
+    pdf_info['end_res'] = pdf_info['file'].str[:-4].str.split('-',n=1,).str[1].str[0:4].apply(pd.to_numeric,errors='coerce').astype('Int64')
+    pdf_info['charge'] = pdf_info['file'].str[:-4].str.split('_').str[-3].str[1:].apply(pd.to_numeric,errors='coerce').astype('Int64')
     #pdf_info['data_id'].str[:-4].str.split('_').str[1].astype('Int64')
     pdf_info = pdf_info.sort_values(['start_res','end_res','sample','charge','type']).reset_index(drop=True)
     pdf_info['type'] = pdf_info['type'].str[1:]
