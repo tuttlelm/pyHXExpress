@@ -607,8 +607,8 @@ def plot_comparison(fits,states=None,times=None,colors=None,savepath=None,svg=Fa
             axes[2*k].scatter(fits[state][use_time].index,fits[state][use_time]['Fit_AVG'],fadedata=(fits[state][use_time]['avg_low'],fits[state][use_time]['avg_high']),s=10,label='Avg',edgecolors=colors[i],facecolors='none',linewidth=1)
             #paxes.scatter(fits[state][use_time].index,1-fits[state][use_time]['Frac_pop1'],label=state+" more exchanged",s=15,colors=colors[i],linewidth=1)
             pop1_filt = np.where(np.isnan(fits[state][use_time]['Fit_AVG']),fits[state][use_time]['Frac_pop1'],np.nan)
-            axes[2*k+1].scatter(fits[state][use_time].index,fits[state][use_time]['Frac_pop1'],label=state+" less exchanged",s=15,edgecolors=colors[i],facecolors='white',linewidth=1,)#alpha=0.2)
-            axes[2*k+1].scatter(fits[state][use_time].index,pop1_filt,label=state+" less exchanged",s=15,facecolors=colors[i],linewidth=1,)#alpha=0.2)
+            axes[2*k+1].scatter(fits[state][use_time].index,fits[state][use_time]['Frac_pop1'],label=state+" less exchanged",s=15,edgecolors=colors[i],facecolors='#FFFFFF'+'20',linewidth=0.7,)#alpha=0.8)
+            axes[2*k+1].scatter(fits[state][use_time].index,pop1_filt,label=state+" less exchanged",s=15,facecolors=colors[i],linewidth=0.7,)#alpha=0.8)
         #axes.text( 2,1.20,time_label,horizontalalignment='left',verticalalignment='bottom') #units of axes  ##above left
         axes[2*k].text( max(fits[state][use_time].index)-3,1.25,time_label,horizontalalignment='right',verticalalignment='bottom') #units of axes  ##above right
         #axes.text( max(fits[state][use_time].index)-3,1.12,time_label,horizontalalignment='right',verticalalignment='top') #units of axes ##inset top right
@@ -641,6 +641,71 @@ def plot_comparison(fits,states=None,times=None,colors=None,savepath=None,svg=Fa
 
 
     return
+
+def get_residues(rangetext):
+    # assuming text is defined by ranges with '-' and comma separated values
+    # not currently accepting negative residue values
+    residues = []
+    commagroups = rangetext.split(',')
+    for i,c in enumerate(commagroups):      
+        cc = [int(x) for x in c.split('-') if len(x) > 0]
+        if len(cc) == 1: #single value specified
+            residues += cc
+        else: 
+            residues += list(np.arange(cc[0],cc[1]+1))
+    return residues
+
+def group_fits(fitsdf,groups,max_sd = 0.5,min_pop = 0.05,z='50'):
+    # create a dataframe of D-uptake values averaged over user specified ranges from dictionary groups = {'groupname':'#-#,#'}
+    # 2-state or 1-state ('Avg') Fits selected based on separation, size of errors, and minimum population requirements 
+    #cols = ['RFU_pop1','Fit_pop1','pop1_sd','RFU_pop2','Fit_pop2','pop2_sd','RFU_avg','Fit_AVG','avg_sd']
+    z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576}
+    cols = ['RFU_pop1', 'pop1_sd','RFU_pop2','pop2_sd','RFU_avg','avg_sd']
+    groupfits_df = pd.DataFrame()
+    for sample in fitsdf['sample'].unique():
+        for group,v in groups.items():
+            resgroup = get_residues(v)
+            plot_data = fitsdf[(fitsdf['sample']==sample) & (fitsdf['r_number'].isin(resgroup))].copy()       
+            #plot_data.loc[plot_data['exposure']==1e6,['RFU_pop1','RFU_pop2','Fit_pop1','Fit_pop2']] = np.nan #don't plot nonsense 2-state for TD
+            #plot_data.loc[plot_data['exposure']==0,['RFU_avg','Fit_AVG']] = np.nan #don't draw line towards zero (looks misleading on log scale)
+            use_data = plot_data.groupby(['exposure'])[cols].mean().reset_index() 
+
+            use_data['pop1_low'] = use_data['RFU_pop1'] - z_value[z]*use_data['pop1_sd']
+            use_data['pop2_low'] = use_data['RFU_pop2'] - z_value[z]*use_data['pop2_sd']
+            use_data['avg_low'] = use_data['RFU_avg'] - z_value[z]*use_data['avg_sd']
+
+            use_data['pop1_high'] = use_data['RFU_pop1'] + z_value[z]*use_data['pop1_sd']
+            use_data['pop2_high'] = use_data['RFU_pop2'] + z_value[z]*use_data['pop2_sd']
+            use_data['avg_high'] = use_data['RFU_avg'] + z_value[z]*use_data['avg_sd']
+
+            use_data['sep'] = (use_data['RFU_pop2'] - use_data['RFU_pop1']) - (use_data['pop2_sd'] + use_data['pop1_sd'])*z_value[z]
+
+            pop1 = (use_data['RFU_pop2'] - use_data['RFU_avg'])/(use_data['RFU_pop2'] - use_data['RFU_pop1'])
+            pop1 = np.where(use_data['RFU_pop1'].isna(),np.nan,pop1)
+            pop1 = np.where(use_data['RFU_pop2'].isna(),np.nan,pop1)
+            pop1 = np.where((use_data['RFU_pop1'] < use_data['RFU_avg']) & (use_data['RFU_avg'] < use_data['RFU_pop2']),pop1,np.nan) #check avg between fits
+            pop1 = pop1.clip(0,1)
+            use_data['pop1'] = pop1
+            use_data['pop2'] = 1 - pop1
+
+            rfu_p1 = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | (pop1 < min_pop), np.nan,use_data['RFU_pop1'])
+            rfu_p2 = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | (pop1 > 1 - min_pop), np.nan,use_data['RFU_pop2'])
+            rfu_p1 = np.where(np.isnan(rfu_p2),np.nan,rfu_p1) ## require both population fits to fit either
+            rfu_p2 = np.where(np.isnan(rfu_p1),np.nan,rfu_p2) ## "" 
+            rfu_p1 = np.where(np.isnan(pop1),np.nan,rfu_p1) ## require both population fits to fit either
+            rfu_p2 = np.where(np.isnan(pop1),np.nan,rfu_p2) ## "" 
+            rfu_avg = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | 
+                            (pop1 < min_pop) | (pop1 > 1 - min_pop),use_data['RFU_avg'],np.nan)
+            rfu_avg = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),use_data['RFU_avg'],rfu_avg) #if missing pop1/2 fits use avg
+            use_data['Fit_pop1'] = rfu_p1
+            use_data['Fit_pop2'] = rfu_p2
+            use_data['Fit_AVG'] = rfu_avg
+
+            use_data['sample'] = sample
+            use_data['Group'] = group 
+
+            groupfits_df = pd.concat([groupfits_df,use_data]).reset_index(drop=True)
+    return groupfits_df
 
 
 def plot_resred(hdxm,states=None,times=None,seq=None,savepath=None,svg=False,plotZero=True,TD_time=1e6,UN_time=0):
