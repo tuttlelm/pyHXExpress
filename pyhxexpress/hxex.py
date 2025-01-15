@@ -1,11 +1,16 @@
 '''
-pyHXEXPRESS v0.0.100
+pyHXEXPRESS v0.0.500
 
 Copyright 2024 Lisa M Tuttle
 
 https://github.com/tuttlelm/pyHXExpress
 
+22Aug2024
+add rss normalization to calc_rss()
+norm fit values before saving as fitparamsdf
+add max_Int to datafits
 '''
+
 #%matplotlib widget 
 import numpy as np, pandas as pd 
 import scipy.stats as stats
@@ -34,7 +39,8 @@ from datetime import datetime
 from collections import Counter
 from Bio import SeqIO
 
-from . import config
+import config
+#from . import config
 
 rng=np.random.default_rng(seed=config.Random_Seed)
 
@@ -173,7 +179,7 @@ def read_metadf(filename):
         print("No file found for spectra list")
         return
 
-def get_metadf():    
+def get_metadf(quiet=False):    
     if config.Read_Spectra_List: 
         metadf = read_metadf(config.Metadf_File)        
     else: 
@@ -255,7 +261,8 @@ def get_metadf():
     if metadf.empty: raise Exception("No data found. Check Data_Type specification and Data_DIR")
     else:
         metadf = metadf.sort_values(['peptide_range','sample','charge',],ignore_index=True) 
-        print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
+        if not quiet:
+            print("Found",len(metadf['sample'].unique()),"sample types with",len(metadf),"total datasets to analyze.")
     return metadf
 
 
@@ -267,7 +274,7 @@ def makelist(thing):
     return thing
 
 def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
-                  charge=None,index=None,timept=None,timeidx=None,peptides=None,rep=None,data_ids=None,quiet=True):
+                  charge=None,index=None,timept=None,timeidx=None,peptides=None,rep=None,data_ids=None,s_ids=None,quiet=True):
     ''' Utility function to Filter metadf (or any other dataframe) based on user specified values
         samples = ['sample1','sample2'] or 'sample1'
         range = [start,end]
@@ -278,7 +285,8 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         timeidx = [0,1,...,]
         peptides = ['PEPTIDESEQ','PEPITYPEPTIDE'] or 'PEPTIDESEQ'
         rep = [1,2,3] or 1
-        data_id = [0,1,...]
+        data_ids = [0,1,...]
+        s_ids = [123-4-1] #<data_id>-<time>-<rep>
     '''
 
     filtered = metadf.copy()
@@ -287,7 +295,7 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         try: filtered = filtered[filtered['sample'].isin(makelist(samples))]
         except: 
             if not quiet: print("no column named sample")
-    if not filtered.empty and range:
+    if not filtered.empty and range is not None:
         try: 
             if set(['start_seq','end_seq']).issubset(filtered.columns):
                 filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
@@ -299,31 +307,41 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         except: 
             print("Filter error: specify range=[start,end]")
             return
-    if not filtered.empty and charge:
+    if not filtered.empty and charge is not None:
         try: filtered = filtered[filtered['charge'].isin(makelist(charge))]
         except: print("no column named charge")
-    if not filtered.empty and (data_ids or data_ids == 0):
+    if not filtered.empty and (data_ids is not None or data_ids == 0):
         if 'data_id' in filtered.columns:
             filtered = filtered[filtered['data_id'].isin(makelist(data_ids))]
         else: index = data_ids
-    if not filtered.empty and (index or index == 0):
+    if not filtered.empty and (index is not None or index == 0):
         filtered = filtered[filtered.index.isin(makelist(index))]
     
-    if not filtered.empty and (timept or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and (timept is not None or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['time'].isin(makelist(timept))]
         except: print("no column named time")
-    if not filtered.empty and (timeidx or timeidx == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and (timeidx is not None or timeidx == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['time_idx'].isin(makelist(timeidx))]
         except: print("no column named time_idx")
-    if not filtered.empty and peptides: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and peptides is not None: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['peptide'].isin(makelist(peptides))]
         except: print("no column named peptide")
-    if not filtered.empty and peptide_ranges: 
+    if not filtered.empty and peptide_ranges is not None: 
         try: filtered = filtered[filtered['peptide_range'].isin(makelist(peptide_ranges))]
         except: print("no column named peptide_ranges")
-    if not filtered.empty and (rep or rep == 0): 
+    if not filtered.empty and (rep is not None or rep == 0): 
         try: filtered = filtered[filtered['rep'].isin(makelist(rep))]
         except: print("no column named rep")
+    
+    if not filtered.empty and (s_ids is not None):
+        s_ids = makelist(s_ids)
+        sidx = []
+        for s_id in s_ids:
+            d, t, r = [float(s) for s in s_id.split('-')]
+            try: 
+                sidx += filtered[(filtered['data_id'] == d) & (filtered['time'] == t) & (filtered['rep']==r)].index.tolist()
+            except: print("no s_id",s_id)        
+        filtered = filtered.loc[sidx]        
       
     if quiet == False: 
         print("Dataframe filtered to",len(filtered),"from",len(metadf),"total entries")
@@ -337,7 +355,7 @@ def goodseq(seq):
         mass.most_probable_isotopic_composition(sequence=seq)
         return True
     except: 
-        print(f"Sequence {seq} is not defined")
+        #print(f"Sequence {seq} is not defined")
         #exit()
         return False
 
@@ -368,7 +386,7 @@ def read_hexpress_data(f,dfrow,keep_raw = False,mod_dict={}):
         if (file[-4:] == 'xlsx') or (file[-3:] == 'xls'):
             ftype = 'excel'
             timepts = pd.read_excel(file,header=None,nrows=1) #get headers
-        elif file[-4:] == 'csv':
+        elif file[-3:] == 'csv':
             ftype = 'csv'
             timepts = pd.read_csv(file,header=None,nrows=1) #get headers
     except IOError as e:
@@ -520,14 +538,18 @@ def get_na_isotope(peptide,charge,npeaks=None,mod_dict={}):
     else: comp = {}
     for key in list(comp):
         pepcomp[key] = comp[key]
-    pepcomp['H'] = pepcomp['H']-count_amides(peptide,count_sc=0.0)
+    pepcomp['Hex']=count_amides(peptide,count_sc=0.0)
+
     #pepcomp = {'H': 53, 'C': 34, 'O': 15, 'N': 7}
     if mod_dict:
-        pkeys = list(pepcomp.keys())
-        tkeys = list(mod_dict.keys())
-        bothkeys = list(set(pkeys) and set(tkeys))
-        for k in bothkeys:
-            pepcomp[k] = pepcomp[k] + mod_dict[k]
+        for key in mod_dict:
+            if key in pepcomp:
+                pepcomp[key] = pepcomp[key] + mod_dict[key]
+        pepcomp = {**pepcomp,**mod_dict}
+
+    if set(['H','Hex']).issubset(pepcomp.keys()): 
+        pepcomp['H'] = pepcomp['H'] - pepcomp['Hex']
+    if 'Hex' in pepcomp.keys(): pepcomp.pop('Hex')
 
     theoretical_isotopic_cluster = isotopic_variants(pepcomp, npeaks=npeaks, charge=charge)
 
@@ -548,7 +570,7 @@ def count_amides (peptide,count_sc=0.0):
         ex_sc += 2*peptide.count(sidechain)
     for sidechain in 'KQN':
         ex_sc += 2*peptide.count(sidechain)
-    n_amides = len(peptide)-proline-config.Nterm_subtract+int(ex_sc*count_sc)
+    n_amides = max(0,len(peptide)-proline-config.Nterm_subtract+int(ex_sc*count_sc))
     return n_amides
 
 
@@ -560,11 +582,17 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     min_pts = config.Max_Pops*3+2 #minimum number of datapoints necessary for max pop fit
     na_buffer = len(get_na_isotope(peptide,charge,mod_dict=mod_dict))//2   
     n_amides = max(count_amides(peptide,count_sc=0.0),min_pts) + na_buffer + padding #include count from Isotopic Envelope
-
-    undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge)
+    undeut_mz = 0.0
+    if len(peptide)>0:
+        undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge)
     #print("undeut",undeut_mz)
+    #print(mod_dict) ##TROUBLESHOOTING
     if mod_dict:
-        undeut_mz += mass.calculate_mass(composition=mod_dict,charge=charge)
+        mod_comp = {}
+        comp_keys = set(list(mod_dict.keys())) - set(['Hex'])
+        for k in comp_keys:
+            mod_comp[k] = mod_dict[k]
+        undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge)
     #print("undeut_mod",undeut_mz)
     #n_deut = np.arange(n_amides+1) #ExMS instead
     #pred_mzs = undeut_mz + (n_deut*1.006277)/charge #ExMS instead
@@ -599,7 +627,9 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         focal_data = focal_data.sort_values('Intensity',ascending=False)#.reset_index(drop=True)
         
         if (len(focal_data) > 0):
-            if (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())):
+            if len(focal_data) == 1: #assumes stick data 
+                max_Int = focal_data['Intensity'].max()
+            elif (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())):
                 max_Int = focal_data['Intensity'].max()
             else: max_Int = 0.0
             focal_data.reset_index(drop=True)
@@ -780,11 +810,13 @@ def n_binom_isotope( bins, *params ): #allfracsversion
     truncated = np.power( 10.0, log_scaler ) * np.sum( poissons, axis=0, )[0:bins+1]
     return truncated 
 
-def calc_rss( true, pred,yerr_systematic=0.0 ):
+def calc_rss( true, pred,yerr_systematic=0.0,norm=True ):
     '''
     calculate the residual squared sum
     '''
-    return np.sum( (pred-true)**2 + yerr_systematic**2 )
+    if norm: n = len(true)
+    else: n = 1.0
+    return np.sum( (pred-true)**2 + yerr_systematic**2 ) / n
 
 def get_params(*fit, sort = False, norm = False, unpack = True):
     '''
@@ -1058,7 +1090,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     ## generalize to preset column headers corresponding to max_pops
     ## Columns may change still depending on X_features used for pops prediction
     data_fit_columns = [ 'data_id','sample', 'peptide', 'peptide_range','start_seq','end_seq','charge', 'time','time_idx', 'rep', 
-                        'centroid', 'env_width', 'env_symm', 'max_namides','UN_TD_corr','fit_pops','p-value']
+                        'max_Int','centroid', 'env_width', 'env_symm', 'max_namides','UN_TD_corr','fit_pops','p-value']
     for imp in range(1,max_pops+1):
         data_fit_columns += ['centroid_'+str(imp), 'Dabs_'+str(imp),'Dabs_std_'+str(imp),'pop_'+str(imp), 'pop_std_'+str(imp), ]
     #                         'mu_'+str(imp), 'Nex_'+str(imp), 'Nex_std_'+str(imp)]
@@ -1105,9 +1137,9 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             if config.Test_Data:
                 config.Keep_Raw == True
                 deutdata, rawdata, solution = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw)
-            elif (user_deutdata.empty) or (config.Keep_Raw):
-                if update_deutdata == True: #only peakpick if necessary
-                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
+            elif (config.Keep_Raw): 
+                if (user_deutdata.empty) or (update_deutdata == True): #only peakpick if necessary
+                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)                   
             else: 
                 if (user_deutdata.empty) or (update_deutdata == True):
                     deutdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
@@ -1207,11 +1239,19 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         try: namide_scale = config.Nex_Max_Scale
         except: namide_scale = 1.2 #instead of using exchangable sidechain fraction to set max_n_amides, just use scale factor
         max_n_amides = count_amides(peptide,count_sc=0.0)*namide_scale #### Might be better way to set this
-        undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge) ####Adjust for mod_dic
-        #print("undeut",undeut_mz)
+        undeut_mz = 0.0
+        if len(peptide)>0:       
+            undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge) ####Adjust for mod_dic
         if mod_dic:
-            undeut_mz += mass.calculate_mass(composition=mod_dic,charge=charge)
-        #print("undeut_mod",undeut_mz)
+            mod_comp = {}
+            if 'Hex' in mod_dic.keys():
+                n_amides += mod_dic['Hex']
+                max_n_amides += mod_dic['Hex']*namide_scale
+            comp_keys = set(list(mod_dic.keys())) - set(['Hex'])
+            for k in comp_keys:
+                mod_comp[k] = mod_dic[k]
+            undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge)
+
         Noise = 0.0
         d_corr = 1.0        
 
@@ -1298,8 +1338,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         for i, ti in enumerate(time_indexes): #range(0,n_time_points): 
             n_time_rep = int(max(deutdata.rep[(deutdata.time_idx==ti)]))
-            timept = int(max(deutdata.time[(deutdata.time_idx==ti)]))
-            if timept == int(config.FullDeut_Time): 
+            timept = max(deutdata.time[(deutdata.time_idx==ti)])
+            if timept == config.FullDeut_Time: 
                 timelabel = 'FullDeut'
             elif timept == 0: timelabel = 'UnDeut'
             else: timelabel = str(timept)+'s'
@@ -1322,11 +1362,13 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 
                 mz=np.array(focal_data.mz.copy())
                 y=np.array(focal_data.Intensity.copy())
+                
                 #x=np.full(y.shape,len(y))
 
                 env_symmetry_adj = 2.0 - (y.max() - env_Int)/y.max() # 0 -> assym, 1 -> symm  
                                                             # want 0 to be 2x and 1 to be 1x -> y = -1*x + 2
 
+                max_y = np.max(y) #maximum Intensity, can filter after 
                 ynorm_factor = np.sum(y)
                 y_norm = y / ynorm_factor # 50secs with vs 2 mins without normalization
                 
@@ -1339,9 +1381,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     scale_y = 1.0
 
                 n_bins = len(y)-1
-                
-                max_y = np.max(y) #for parameter initialization
-                
+                                                
                 centroid_j = sum(mz*y)/sum(y) #centroid from unfit picked peaks
 
                 #data_fit =pd.DataFrame({'time':[timept],'rep':[j],'centroid':[centroid_j]})
@@ -1350,6 +1390,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 data_fit.loc[0,'time'] = timept
                 data_fit.loc[0,'time_idx'] = ti
                 data_fit.loc[0,'rep'] = j
+                data_fit.loc[0,'max_Int'] = max_y
                 data_fit.loc[0,'centroid'] = centroid_j
                 data_fit.loc[0,'UN_TD_corr'] = d_corr 
                 data_fit.loc[0,'sample'] = sample
@@ -1436,6 +1477,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     fitparamsdf['ncurves'] = n_curves
                     fitparamsdf['nboot'] = 0
                     fitparamsdf['rss'] = rss
+                    fit = get_params(*fit,norm=True,unpack=False) #make sure populations are normalized before saving outputs 
                     fitparamsdf['Fit_Params'] = (' ').join(map(str,fit))
                     if config.Test_Data:
                                 fitparamsdf['solution_npops'] = solution['npops'][solution.time==timept].to_numpy()[0] 
@@ -1609,7 +1651,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     ax[i,j-1].plot(env,[scaled_env_height,scaled_env_height],label=env_label,color='darkorange')
                     if config.Keep_Raw:
                         ax[i,j-1].plot( focal_raw.mz, focal_raw.Intensity, color='#999999' ) #ax[i,j-1]
-                    else: ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1]
+                    ax[i,j-1].vlines( mz, 0.0, y_plot, color='#999999' ) #ax[i,j-1] # TROUBLESHOOTING #else: 
                     
                     ax[i,j-1].plot( mz, y_plot, 'ro', label='data '+ timelabel+", rep "+str(j), markersize='4')
                     ax[i,j-1].vlines( centroid_j, 0, max(y_plot), color='orange' ,label='m/z = '+format(centroid_j,'.2f'),linestyles='dashed',linewidth=2,zorder=10)
@@ -1709,7 +1751,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
                     ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
                     #ax2[i,j-1].set(xlim=(-3,(uppermz-lowermz+9)))
-                    ax2[i,j-1].set_xlabel("Absolute Deuterium Level (Da)") #N*mu")
+                    ax2[i,j-1].set_xlabel("Deuterium Level (Da)") #N*mu")
                     ax2[i,j-1].set_ylabel("population") 
                     if overlay_reps:
                         ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
@@ -1718,11 +1760,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         #ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
                         ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
                         ax2[i,ncols-1].set_title(label='Replicates Overlay')
-                        ax2[i,ncols-1].set_xlabel("Absolute Deuterium Level (Da)")
+                        ax2[i,ncols-1].set_xlabel("Deuterium Level (Da)")
                         ax2[i,ncols-1].set_ylabel("population") 
 
         if GP:
-            dax.set_ylabel("Absolute Deuterium Level (Da)")
+            dax.set_ylabel("Deuterium Level (Da)")
             dax.set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
             dfig.tight_layout()
             if config.Test_Data: 
@@ -1891,7 +1933,8 @@ def export_to_hxexpress(rawdata,metadf,save_xls = False, removeUNTDreps = False)
         hxcols.to_excel(os.path.join(config.Data_DIR,filename+".xlsx"),index=None)
     return hxcols
 
-def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,ax=None,rax=None,plt_kwargs={},simfit=False,saveas=None):
+def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,
+                  ax=None,rax=None,plt_kwargs={},simfit=False,saveas=None,return_fit_data=False):
     '''
     intended to plot a single spectrum: raw data, picked peaks, and fits
     '''
@@ -1907,13 +1950,17 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
             fig, (ax,rax) =  plt.subplots(2, 1, figsize=(5,5),gridspec_kw={'height_ratios': [3, 1]})
     plt_raw = {'color':'#999999'}
     plt_raw.update(plt_kwargs)
-    deut_spectra = zip(*[deutdata[col] for col in ['sample','peptide_range','time','rep','charge']])
+    sample_id_cols = ['sample','peptide_range','time','rep','charge']
+    deut_spectra = zip(*[deutdata[col] for col in sample_id_cols])
     deut_spectra = list(dict.fromkeys(deut_spectra))
+    all_fit_data = pd.DataFrame()
 
     for s,p,t,r,z in deut_spectra:
         focal_data = filter_df(deutdata,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
         focal_raw = filter_df(rawdata,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
         focal_fit = filter_df(fit_params,quiet=True,samples=s,peptide_ranges=p,timept=t,charge=z,rep=r)
+
+        fit_data = pd.DataFrame()
 
         peptide = focal_data['peptide'].values[0]
         peptide_range = focal_data['peptide_range'].values[0]
@@ -1941,6 +1988,8 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
         ax.plot(mz, y, 'ro',  markersize='4',label=pl ,zorder=1)
         ax.plot(focal_raw.mz, rawint, **plt_raw ,zorder=0)
 
+        fit_data = pd.DataFrame({'mz':mz,'Intensity':y})
+
         if not focal_fit.empty:
             fits = focal_fit.copy()
             Current_Isotope = get_na_isotope(peptide,z,npeaks=None,mod_dict={})
@@ -1963,6 +2012,7 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                 # print("y/fit_y:", y/fit_y)
 
                 ax.plot( mz, fit_y, '-', alpha=0.5)#label='fit sum N='+str(best_n_curves));
+                fit_data['fit_sum_nb'+str(nb)] = fit_y
 
                 if residual == True:
                     rlabel=''
@@ -1991,7 +2041,10 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
                     if len(deut_spectra) == 1:
                         if (k==0) & (nb==1): fit_kwds.update({'label':'BootFits'})
                         if (nb==0): fit_kwds.update({'label':plot_label})
-                    ax.plot( mz, fit_yk,**fit_kwds)              
+                    ax.plot( mz, fit_yk,**fit_kwds)
+                    fit_data['fit_p'+str(k)+'_nb'+str(nb)] = fit_yk
+        fit_data[sample_id_cols] =s,p,t,r,z
+        all_fit_data = pd.concat([all_fit_data,fit_data],ignore_index=True)
     if len(deut_spectra) == 1:
         ax.set(xlim=(lowermz-3/z,uppermz+9/z))
         if residual: 
@@ -2019,7 +2072,9 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
         except IOError as e:
             print (f"Could not save: {figfile} file is open")  
 
-    return
+    if return_fit_data:
+        return all_fit_data
+    else: return
 
 
 ## Plot metadf as pdf table
