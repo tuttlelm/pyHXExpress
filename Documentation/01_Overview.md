@@ -47,4 +47,4 @@ Guttman M., Weis, D.D., Engen, J.R. & Lee, K. K. (2013).  Analysis of overlapped
 
 <a id="2">[2]</a> From the [HDExaminer](https://massspec.com/hdexaminer/) documentation: "To export the raw spectra used for all calculated results in a Peptide Pool: switch to the Peptides View, then select a Peptide Pool or any peptide in that pool. Select “Tools”, then “Export”, then “Pool Spectra…” or right-click on any Peptide Pool or peptide and select “Export Pool Spectra…”. Select a folder. HDExaminer will save the raw spectrum data for each result corresponding to the selected Peptide Pool. The exported data will be saved to a subfolder called SpecExport, with another subfolder called Fragments in the case of middle down data. The individual spectra will be saved in csv format."
 
-###### Last edited by LMT on 14April2024
+###### Last edited by LMT on 15Jan2025
