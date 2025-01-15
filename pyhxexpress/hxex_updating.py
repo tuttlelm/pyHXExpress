@@ -1,5 +1,5 @@
 '''
-pyHXEXPRESS v0.0.120
+pyHXEXPRESS v0.0.500
 
 Copyright 2024 Lisa M Tuttle
 
@@ -295,7 +295,7 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         try: filtered = filtered[filtered['sample'].isin(makelist(samples))]
         except: 
             if not quiet: print("no column named sample")
-    if not filtered.empty and range:
+    if not filtered.empty and range is not None:
         try: 
             if set(['start_seq','end_seq']).issubset(filtered.columns):
                 filtered = filtered[(filtered['start_seq']>= range[0]) & (filtered['end_seq'] <= range[1])]
@@ -307,41 +307,41 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
         except: 
             print("Filter error: specify range=[start,end]")
             return
-    if not filtered.empty and charge:
+    if not filtered.empty and charge is not None:
         try: filtered = filtered[filtered['charge'].isin(makelist(charge))]
         except: print("no column named charge")
-    if not filtered.empty and (data_ids or data_ids == 0):
+    if not filtered.empty and (data_ids is not None or data_ids == 0):
         if 'data_id' in filtered.columns:
             filtered = filtered[filtered['data_id'].isin(makelist(data_ids))]
         else: index = data_ids
-    if not filtered.empty and (index or index == 0):
+    if not filtered.empty and (index is not None or index == 0):
         filtered = filtered[filtered.index.isin(makelist(index))]
     
-    if not filtered.empty and (timept or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and (timept is not None or timept == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['time'].isin(makelist(timept))]
         except: print("no column named time")
-    if not filtered.empty and (timeidx or timeidx == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and (timeidx is not None or timeidx == 0): #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['time_idx'].isin(makelist(timeidx))]
         except: print("no column named time_idx")
-    if not filtered.empty and peptides: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
+    if not filtered.empty and peptides is not None: #not in metadf but use to filter all_results_dataframe for Fixed_Pops
         try: filtered = filtered[filtered['peptide'].isin(makelist(peptides))]
         except: print("no column named peptide")
-    if not filtered.empty and peptide_ranges: 
+    if not filtered.empty and peptide_ranges is not None: 
         try: filtered = filtered[filtered['peptide_range'].isin(makelist(peptide_ranges))]
         except: print("no column named peptide_ranges")
-    if not filtered.empty and (rep or rep == 0): 
+    if not filtered.empty and (rep is not None or rep == 0): 
         try: filtered = filtered[filtered['rep'].isin(makelist(rep))]
         except: print("no column named rep")
     
-    if not filtered.empty and s_ids:
+    if not filtered.empty and (s_ids is not None):
         s_ids = makelist(s_ids)
         sidx = []
         for s_id in s_ids:
             d, t, r = [float(s) for s in s_id.split('-')]
             try: 
                 sidx += filtered[(filtered['data_id'] == d) & (filtered['time'] == t) & (filtered['rep']==r)].index.tolist()
-            except: print("no s_id",s_id)    
-        filtered = filtered.iloc[sidx]        
+            except: print("no s_id",s_id)        
+        filtered = filtered.loc[sidx]        
       
     if quiet == False: 
         print("Dataframe filtered to",len(filtered),"from",len(metadf),"total entries")
@@ -1751,7 +1751,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     ax2[i,j-1].legend(title=timelabel+", rep"+str(j),frameon=True,loc='upper right');
                     ax2[i,j-1].set(xlim=(-1.,max_n_amides+4),ylim=(-0.05,1.05))
                     #ax2[i,j-1].set(xlim=(-3,(uppermz-lowermz+9)))
-                    ax2[i,j-1].set_xlabel("Absolute Deuterium Level (Da)") #N*mu")
+                    ax2[i,j-1].set_xlabel("Deuterium Level (Da)") #N*mu")
                     ax2[i,j-1].set_ylabel("population") 
                     if overlay_reps:
                         ax2[i,ncols-1].scatter(centroid_j_corr,1.0,label='Centroid',alpha=0.8,c='k',marker='x',zorder=0)
@@ -1760,11 +1760,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                         #ax2[i,ncols-1].set(xlim=(-3,(uppermz-lowermz+9)))
                         ax2[i,ncols-1].legend(title=timelabel,frameon=True,loc='upper right');
                         ax2[i,ncols-1].set_title(label='Replicates Overlay')
-                        ax2[i,ncols-1].set_xlabel("Absolute Deuterium Level (Da)")
+                        ax2[i,ncols-1].set_xlabel("Deuterium Level (Da)")
                         ax2[i,ncols-1].set_ylabel("population") 
 
         if GP:
-            dax.set_ylabel("Absolute Deuterium Level (Da)")
+            dax.set_ylabel("Deuterium Level (Da)")
             dax.set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
             dfig.tight_layout()
             if config.Test_Data: 
