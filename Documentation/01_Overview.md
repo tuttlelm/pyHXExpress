@@ -30,7 +30,7 @@ A metadata dataframe ('metadf') is used to control what peptide/charge/replicate
 
 The minimum required columns** in a metadf file are 'Index' (integer row identifier that becomes the 'data_id' in outputs),'file' (the filename with extension for tabular data or the peptide folder name for SpecExport data),'sample' (sample name),'start_seq' (begin residue number),'end_seq' (end residue number),'peptide_range' (begin-end),'charge' (integer charge state), and 'peptide' (correct single letter sequence). Any additional columns are allowed and will be ignored.
 
-**If there are any peptide modifications, the user will need to manually create or modify the inferred metadf file to include a 'modification' column that contains any peptide modification present for each peptide. A phosphorylation modification (+HPO3) would be indicated by the composition: 'H:1 P:1 O:3'. The number of exchangable protons should be indicated by e.g. 'Hex:4'. 
+**If there are any peptide modifications, the user will need to manually create or modify the inferred metadf file to include a 'modification' column that contains any peptide modification present for each peptide. A phosphorylation modification (+HPO3) would be indicated by the composition: 'H:1 P:1 O:3'. If the modification has exchangable protons, they should be indicated by e.g. 'Hex:4'. 
 
 
 #### III. The User Configuration File
