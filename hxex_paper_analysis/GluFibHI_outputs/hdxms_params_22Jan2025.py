@@ -1,0 +1,48 @@
+import os
+from datetime import datetime
+now = datetime.now()
+date = now.strftime('%d%b%Y')
+
+#config parameters 22Jan2025
+Allow_Overwrite = True
+BestFit_of_X = 3
+Binomial_dCorr = True
+Data_DIR = r"/home/tuttle/data/HDX-MS/pyHXExpress/Bimodal_HDX_Data"
+Data_Type = 1
+# missing parameter DiffEvo_kwargs
+# missing parameter DiffEvo_threshold
+Dfrac = 0.9
+Env_limit = 0.95
+Env_threshold = 0.1
+FullDeut_Time = 1000000.0
+Hide_Figure_Output = False
+Keep_Raw = True
+Limit_by_envelope = False
+Max_Pops = 4
+Metadf_File = r"hdxms_testsets_metadf.csv"
+Min_Pops = 1
+Nboot = 20
+Ncurve_p_accept = 0.1
+Nex_Max_Scale = 1.2
+Nterm_subtract = 1
+Output_DIR = r"/data/tuttle/HDX-MS/hxex_paper/GluFibHI_outputs"
+Overlay_replicates = True
+Peak_Resolution = 70
+Pop_Thresh = 0.03
+Preset_Pops = False
+Preset_Pops_File = r"."
+process_ALL = True
+Random_Seed = 16
+Read_Spectra_List = True
+Residual_Cutoff = 0
+Save_Spectra = False
+Scale_Y_Values = True
+setNoise = 5000
+SVG = True
+Test_Data = True
+Use_DiffEvo = False
+User_mutants = ['']
+User_peptides = ['']
+WRITE_PARAMS = True
+Y_ERR = 2
+Zero_Filling = 3
