@@ -1,5 +1,6 @@
 '''
-Utility functions for analysis after running pyHXExpress
+(hxex_utils.py will be more updated)
+Utility functions for analysis after running pyHXExpress 
 Includes some functionality that requires pyHDX 
       (my github fork has modifications to allow for replicate data)
 
