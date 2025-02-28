@@ -11,7 +11,7 @@ USE_PARAMS_FILE = False
 
 USE_PARAMS_FILE = False  #### IF THIS IS TRUE ALL PARAMETERS ARE READ FROM PARAMS_FILE:
 if USE_PARAMS_FILE:
-    PARAMS_FILE = '/home/tuttle/data/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport/hdxms_params.py'
+    PARAMS_FILE = 'SpecExport\\hdxms_params.py'
 
 ## OR if USE_PARAMS_FILE = False *** COMPLETE THE FOLLOWING SECTION *** ##
 WRITE_PARAMS = True #save the params to hdxms_params_$.py file in Data_DIR, can then be read in as PARAMS_FILE 
@@ -30,17 +30,13 @@ Data_Type = 2  #Test_Data = True has precedence over this, will make Data_Type =
     #2: 'SpecExport', as exported from HDExaminer Data_DIR/samples/peptides/onetimept_onerep_onecharge.csv
                 # this mode requires a sample.fasta file in the Data_DIR for each sample to be processed, with matching names
 if Data_Type == 1:
-    Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data'
-    #Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
+    Data_DIR = 'hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data'
     Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = False # if True will assume all .xlsx files are HDX data, use with care
     User_mutants = ['HSPB1only',]#'HSPB1_B1B6'] #['all'] #first element can be 'all' to include all mutants and/or peptides in directory
     User_peptides = ['0001-0011',]#'0078-0094']
 if Data_Type == 2:
-    #Data_DIR = '/data/tuttle/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport'
-    #Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
-    Data_DIR = '/home/tuttle/data/HDX-MS/sHSP_Heterooligomers/b1_hetero/SpecExport/'
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
+    Data_DIR = 'hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
     Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = True #process_all = True is limited to existing .fasta files, this setting overrides user_ settings
     User_mutants = [''] #['WT','S19D','S45D','S59D','D3']#['All'] #
@@ -48,8 +44,7 @@ if Data_Type == 2:
 
 if Test_Data: 
     Data_Type = 1
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\HX-Express3'
-    Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
+    Data_DIR = 'Bimodal_HDX_Data'
     #Test_Sets = ['v3_Angiotensin_Bimodals.xlsx','v3_GluFib_Bimodals.xlsx']
     Read_Spectra_List = True
     Metadf_File = "hdxms_testsets_metadf.csv"

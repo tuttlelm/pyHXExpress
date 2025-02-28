@@ -26,10 +26,8 @@ Data_Type = 2  #Test_Data = True has precedence over this, will make Data_Type =
     #2: 'SpecExport', as exported from HDExaminer Data_DIR/samples/peptides/onetimept_onerep_onecharge.csv
                 # this mode requires a sample.fasta file in the Data_DIR for each sample to be processed, with matching names
 
-#Data_DIR = '/data/tuttle/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport'
-# Data_DIR = '/home/tuttle/data/HDX-MS/sHSP_Heterooligomers/b1_hetero/SpecExport/'
-Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
-#Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
+
+Data_DIR = 'SpecExport/'
 Metadf_File = '' #"hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
 process_ALL = True #process_all = True is limited to existing .fasta files, this setting overrides user_ settings
 User_mutants = [''] #['WT','S19D','S45D','S59D','D3']#['All'] #

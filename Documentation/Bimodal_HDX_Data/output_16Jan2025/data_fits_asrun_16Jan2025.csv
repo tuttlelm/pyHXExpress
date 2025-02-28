@@ -1,0 +1,1 @@
+Index,data_id,sample,peptide,peptide_range,start_seq,end_seq,charge,time,time_idx,rep,max_Int,centroid,env_width,env_symm,max_namides,UN_TD_corr,fit_pops,p-value,centroid_1,Dabs_1,Dabs_std_1,pop_1,pop_std_1,centroid_2,Dabs_2,Dabs_std_2,pop_2,pop_std_2,centroid_3,Dabs_3,Dabs_std_3,pop_3,pop_std_3,centroid_4,Dabs_4,Dabs_std_4,pop_4,pop_std_4,solution_npops

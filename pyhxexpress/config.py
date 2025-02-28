@@ -26,28 +26,20 @@ Data_Type = 2  #Test_Data = True has precedence over this, will make Data_Type =
                 # this mode requires a sample.fasta file in the Data_DIR for each sample to be processed, with matching names
 if Data_Type == 1:
     Data_DIR = os.getcwd()
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data'
-    #Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
-    Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
+    Metadf_File = "" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = False # if True will assume all .xlsx files are HDX data, use with care
-    User_mutants = ['HSPB1only',]#'HSPB1_B1B6'] #['all'] #first element can be 'all' to include all mutants and/or peptides in directory
-    User_peptides = ['0001-0011',]#'0078-0094']
+    User_mutants = ['',]#['all'] #first element can be 'all' to include all mutants and/or peptides in directory
+    User_peptides = ['',]
 if Data_Type == 2:
     Data_DIR = os.getcwd()
-    #Data_DIR = '/data/tuttle/HDX-MS/Pearl_SpecExport_30oct2023/SpecExport'
-    #Data_DIR = '/data/tuttle/HDX-MS/Pearl_FimHWTL34K_V6/SpecExport/'
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\ns_HSPB1_Bimodal_Peptide_Data\\SpecExport'
-    Metadf_File = "hdx_spectra_list_metadf_02Nov2023.csv" #only used if Read_Spectra_List = True; designates files to process
+    Metadf_File = "" #only used if Read_Spectra_List = True; designates files to process
     process_ALL = True #process_all = True is limited to existing .fasta files, this setting overrides user_ settings
-    User_mutants = [''] #['WT','S19D','S45D','S59D','D3']#['All'] #
-    User_peptides =  ['']#'0049-0054']#['0034-0045'] #['0093-0116'] #['0090-0113']'0122-0166']#
+    User_mutants = [''] #['All'] #
+    User_peptides =  [''] #
 
 if Test_Data: 
     Data_Type = 1
     Data_DIR = os.getcwd()
-    #Data_DIR = 'c:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\HX-Express3'
-    #Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
-    #Test_Sets = ['v3_Angiotensin_Bimodals.xlsx','v3_GluFib_Bimodals.xlsx']
     Read_Spectra_List = True
     Metadf_File = "hdxms_testsets_metadf.csv"
                 
@@ -79,7 +71,7 @@ Y_ERR = 1.0 #Percent random error applied during boot as y*+np.random.normal(0,y
 Binomial_dCorr = True #use the n=1 binomial fit to determine UN/TD centers for d_corr calculation
                     # this is essential if dirty spectra; otherwise using sum(mz*y)/sum(y) which will be wrong if there are contaminating peaks
 Peak_Resolution = 50.0 #ppm, sensitivity of peak picker to expected m/z centers 
-Zero_Filling = 4 #number of zero points below noise threshold to include in peak picking
+Zero_Filling = 3 #number of zero points below noise threshold to include in peak picking
 Nex_Max_Scale = 1.2
 Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 

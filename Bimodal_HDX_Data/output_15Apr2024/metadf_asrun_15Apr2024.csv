@@ -1,3 +1,0 @@
-Index,file,sample,start_seq,end_seq,peptide_range,charge,peptide,polymodal,dataset_run
-2,Angio_2_HI.xlsx,AngioII_HI,1,8,0001-0008,2,DRVYIHPF,60 180 240 300 360 420 480 540 600 660 720 780 840 900 960 1020 1080 1140 1200 1260,Yes
-5,GluFib_2_HI.xlsx,GluFib_HI,1,14,0001-0014,2,EGVNDNEEGFFSAR,240 300 360 420 480 540 600 660 720 780 840 900 960 1020 1080 1140 1200 1260,Yes

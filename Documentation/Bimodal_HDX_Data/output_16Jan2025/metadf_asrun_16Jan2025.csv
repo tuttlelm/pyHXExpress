@@ -1,0 +1,3 @@
+Index,file,sample,start_seq,end_seq,peptide_range,charge,peptide
+2,Angio_2_HI.xlsx,AngioII_HI,1,8,0001-0008,2,DRVYIHPF
+5,GluFib_2_HI.xlsx,GluFib_HI,1,14,0001-0014,2,EGVNDNEEGFFSAR

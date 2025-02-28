@@ -18,8 +18,7 @@ Test_Data = True
 Data_Type = 1 
 Save_Spectra = False
 process_ALL = True
-Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\hdx-ms\\pyHXExpress\\Bimodal_HDX_Data'
-#Data_DIR = '/home/tuttle/data/HDX-MS/pyHXExpress/Bimodal_HDX_Data'
+Data_DIR = 'C:\\Users\\tuttl\\OneDrive\\Documents\\My Documents\\KlevitHahn\\github\\pyHXExpress\\Bimodal_HDX_Data'
 Read_Spectra_List = True #get metadf from Metadf_File
 Metadf_File = "hdxms_testsets_metadf.csv"              
 Output_DIR = os.path.join(Data_DIR,'output_'+str(date),'')
@@ -34,7 +33,7 @@ Hide_Figure_Output = False #True Recommended when processing lots of data.
 SVG = False # also save figures as an svg file, slow, but better for making figures 
 
 BestFit_of_X = 3
-Residual_Cutoff = 3.3e-5
+Residual_Cutoff = 0 #3.3e-5
 
 Nboot = 20 # number of individual fits to perform, using n_best_curves from initial round of fits
 setNoise = 5000 #if noise value is known, specify instead of estimating as Y_ERR % of avg Un+TD peaks, overrides Y_ERR
@@ -52,7 +51,7 @@ Env_threshold = 0.1 #find envelope width at Env_threshold * Intensity_max
 Limit_by_envelope = False # only fit up to n = int(z*env/3*Env_limit - 2/3) 
 Env_limit = 0.95 #used if Limit_by_envelope = True, rough measure to constrain n_curves fit according to data width & num fit params
 Min_Pops = 1 # Min_Pops to Max_Pops sets the range of populations to fit, set to same value to force single population
-Max_Pops = 3 # maximum number of underlying populations to fit
+Max_Pops = 4 # maximum number of underlying populations to fit
 Nex_Max_Scale = 1.2 #multipler of how much to let Nex exceed the number predicted exchangable backbone NHs
 Pop_Thresh = 0.03 #fall back to n-1 curves if population is below this, does not apply to bootstrap fits, but does exclude from boot average values
 Ncurve_p_accept = 0.05 #stringency for accepting more fit populations, higher permits more populations, reasonable values are 0.01 to 0.05 

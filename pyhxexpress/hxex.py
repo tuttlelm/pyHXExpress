@@ -39,7 +39,7 @@ from datetime import datetime
 from collections import Counter
 from Bio import SeqIO
 
-import config
+import pyhxexpress.config as config
 #from . import config
 
 rng=np.random.default_rng(seed=config.Random_Seed)
