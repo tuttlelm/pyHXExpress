@@ -586,7 +586,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     undeut_mz = 0.0
     if 'ion_type' in mod_dict.keys(): 
         ion_type = mod_dict['ion_type']
-        mod_dict.pop('ion_type')
+        #mod_dict.pop('ion_type')
     else: ion_type = 'M'
     if len(peptide)>0:
         undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge,ion_type=ion_type)
