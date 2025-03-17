@@ -1,6 +1,12 @@
 # [pyHXExpress](https://github.com/tuttlelm/pyHXExpress)
 
 *** The "paper" branch of this repository corresponds to the version of pyHXExpress and scripts used in the paper ***
+<br><br>
+Tuttle, L. M., Klevit, R. E., Guttman M. (2025).
+A framework for automated multimodal HDX-MS analysis. 
+bioRxiv 2025.03.13.643099; [DOI: 10.1101/2025.03.13.643099](https://www.biorxiv.org/content/10.1101/2025.03.13.643099v1).
+<br><br>
+
 
 This is a python adaptation of [HX-Express](https://www.hxms.com/HXExpress/) [[1]](#1) to perform polymodal fits of Hydrogen-Deuterium Exchange Mass Spectrometry (HDX-MS) data. This package can be used for high throughput analysis of entire peptide pools and beyond. The pyHXExpress tools can be used in python scripts or used interactively within Jupyter Notebooks. The goal of this project is to allow users to easily interact with their data and subsequent outputs to gain statistically supported insights into the polymodality of the HDX data. 
 
