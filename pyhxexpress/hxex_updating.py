@@ -634,7 +634,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         focal_data = focal_data.sort_values('Intensity',ascending=False)#.reset_index(drop=True)
         
         if (len(focal_data) > 0):
-            if len(focal_data) == 1: #assumes stick data 
+            if len(focal_data) < 2: #assumes stick data or sparse data
                 max_Int = focal_data['Intensity'].max()
             elif (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())):
                 max_Int = focal_data['Intensity'].max()

@@ -92,8 +92,8 @@ def convert_to_uptakedf(datafit,proj=None):
          proj = test['sample'].unique()[0]
     uptakedf['Protein'] = proj
 
-    #filter some garbage data based on TD-UN
-    uptakedf = uptakedf[uptakedf['UN_TD_corr']<1.05]
+    #filter some garbage data based on TD-UN ... leave this to baddata_id when reading in data
+    #uptakedf = uptakedf[uptakedf['UN_TD_corr']<1.05]
     
     return uptakedf
 
@@ -188,13 +188,16 @@ def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein',dummyTD = '1e6s', ke
         peps = data[data["state"]==state]["_sequence"].unique()
         for pep in peps:
             try: #may have gotten here without a TD measurement 
-                fd_up = data[(data["_sequence"]==pep) & (data["exposure"]=="MAX")& (data["state"]==state)]['uptake'].iat[0]
-                fd_up_sd = data[(data["_sequence"]==pep) & (data["exposure"]=="MAX")& (data["state"]==state)]['center_sd'].iat[0]
+                fd_up = data[(data["_sequence"]==pep) & (data["exposure"]=="MAX")& (data["state"]==state)]['uptake'].mean()#.iat[0]
+                fd_up_sd = data[(data["_sequence"]==pep) & (data["exposure"]=="MAX")& (data["state"]==state)]['uptake'].std()#.iat[0]
+                nd_up_sd = data[(data["_sequence"]==pep) & (data["exposure"]==0)& (data["state"]==state)]['uptake'].std()
             except: 
                 fd_up = data[(data["_sequence"]==pep) & (data["state"]==state)]['maxuptake'].iat[0]
-                fd_up_sd = data[(data["_sequence"]==pep) & (data["state"]==state)]['maxuptake'].iat[0]
+                fd_up_sd = 0.0
+                nd_up_sd = 0.0
             data.loc[data["_sequence"]==pep, "fd_uptake"]=fd_up
             data.loc[data["_sequence"]==pep, "fd_uptake_sd"]=fd_up_sd
+            data.loc[data["_sequence"]==pep, "nd_uptake_sd"]=nd_up_sd
     data["center"]=data["mhp"]+data["uptake"]
     data["rt_sd"]=0.05 #dummy value
 
@@ -444,7 +447,7 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
     else: 
         nset = 1
         hratios = [10]*len(times)
-        hspace = ([0.7]*(len(times)))
+        hspace = ([0.7]*(len(times)-1))
 
     #print("hspace",hspace,len(hspace))
     #print("hratios",hratios,len(hratios))
@@ -462,6 +465,7 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
 
 
     for i, use_time in enumerate(times):
+
         if use_time == TD_time:
             time_label = 'FullDeut'
         elif use_time == UN_time:
@@ -502,6 +506,8 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
         pop1 = pop1.clip(0,1)
         #pop1 = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),np.nan,pop1) #if missing pop1/2 fits use avg
 
+        rfu_p1 = np.where((rfu['center']['p1'] > 1.1) | (rfu['center']['p1'] < -0.1),np.nan,rfu['center']['p1']) #as it stands these still contribute to stdev
+        rfu_p2 = np.where((rfu['center']['p2'] > 1.1) | (rfu['center']['p2'] < -0.1),np.nan,rfu['center']['p2'])
         rfu_p1 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | (pop1 < min_pop), np.nan,rfu['center']['p1'])
         rfu_p2 = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | (pop1 > 1 - min_pop), np.nan,rfu['center']['p2'])
         rfu_p1 = np.where(np.isnan(rfu_p2),np.nan,rfu_p1) ## require both population fits to fit either
@@ -511,6 +517,10 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
         rfu_avg = np.where((sep < 0) | (rfu['sd']['p1'] > max_sd) |  (rfu['sd']['p2'] > max_sd) | 
                         (pop1 < min_pop) | (pop1 > 1 - min_pop),rfu['center']['avg'],np.nan)
         rfu_avg = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),rfu['center']['avg'],rfu_avg) #if missing pop1/2 fits use avg
+
+        p1_sd = ((pop1 / (rfu_p2 - rfu_p1) )**2) * rfu['sd']['p1']**2 + \
+                    ((rfu_avg - rfu_p1)/(rfu_p2 - rfu_p1)**2) * rfu['sd']['p2']**2 + \
+                    ((1/(rfu_p2 - rfu_p1))**2) * rfu['sd']['avg']**2      #partial derivatives for error propogation
         
 
         if plot:
@@ -520,10 +530,17 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
 
             marker_size = pop1.copy()
             marker_size[np.isnan(marker_size)] = 0
-            axes[i*nset].scatter(resi,rfu_p1,labels="Fit pop1",color='green',s=(marker_size)**2,smin=5,smax=80,) #more protected
-            axes[i*nset].scatter(resi,rfu_p2,labels="Fit pop2",color='darkred',s=2*((1-marker_size)**2),smin=5,smax=80,) #more exchanged
-            axes[i*nset].scatter(resi,rfu_avg,labels="Fit AVG",edgecolors='black',facecolors='none',markeredgewidth=1.5,zorder=10)
-
+            
+            if ~np.isnan(rfu_p1).all():
+                axes[i*nset].scatter(resi,rfu_p1,labels="Fit pop1",color='green',s=(marker_size)**2,smin=5,smax=80,) #more protected
+            else: axes[i*nset].scatter([-1],[-1],labels="Fit pop1",color='green',s=50) #need something to get label for legend
+            if ~np.isnan(rfu_p2).all():
+                axes[i*nset].scatter(resi,rfu_p2,labels="Fit pop2",color='darkred',s=2*((1-marker_size)**2),smin=5,smax=80,) #more exchanged
+            else: axes[i*nset].scatter([-1],[-1],labels="Fit pop2",color='darkred',s=50) #need something to get label for legend
+            if ~np.isnan(rfu_avg).all():
+                axes[i*nset].scatter(resi,rfu_avg,labels="Fit AVG",edgecolors='black',facecolors='none',markeredgewidth=1.5,zorder=10)
+            else: axes[i*nset].scatter([-1],[-1],labels="Fit AVG",color='black',facecolors='none',markeredgewidth=1.5,s=50) #need something to get label for legend
+            
             axes[i*nset].format(ylim=(0,1.19),xlim=(0,max(resi)),ylocator=[0,0.25,0.5,0.75,1.0])
             axes[i*nset].format(ylabel="fractional D-uptake")
             axes[i*nset].format(xlabel='')
@@ -531,7 +548,7 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
             axes[i*nset].text( max(resi)-3,1.25,state+' '+time_label,horizontalalignment='right',verticalalignment='bottom') #units of axes
             #axes[0].legend(loc='top',ncols=3);
             axes[i*nset].yaxis.set_label_coords(-0.049,0.5)
-        
+
             if plotpop:
                 #axes[i*nset].format(xtickloc='none')                
                 axes[i*nset].format(xlabel="",xtickrange=(-1,-1))
@@ -548,20 +565,21 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
         if return_fits:
             fits = pd.concat([pd.Series(rfu['center']['p1'],index=resi,name='RFU_pop1'),
                             pd.Series(rfu_p1,index=resi,name='Fit_pop1'),
-                            pd.Series(rfu['sd']['p1'],index=resi,name='pop1_sd'),
+                            pd.Series(rfu['sd']['p1'],index=resi,name='RFU1_sd'),
                             pd.Series(np.where(np.isnan(rfu_p1),np.nan,rfu['low']['p1']),index=resi,name='pop1_low'),
                             pd.Series(np.where(np.isnan(rfu_p1),np.nan,rfu['high']['p1']),index=resi,name='pop1_high'),
                             pd.Series(rfu['center']['p2'],index=resi,name='RFU_pop2'),
                             pd.Series(rfu_p2,index=resi,name='Fit_pop2'),
-                            pd.Series(rfu['sd']['p2'],index=resi,name='pop2_sd'),
+                            pd.Series(rfu['sd']['p2'],index=resi,name='RFU2_sd'),
                             pd.Series(np.where(np.isnan(rfu_p2),np.nan,rfu['low']['p2']),index=resi,name='pop2_low'),
                             pd.Series(np.where(np.isnan(rfu_p2),np.nan,rfu['high']['p2']),index=resi,name='pop2_high'),
                             pd.Series(rfu['center']['avg'],index=resi,name='RFU_avg'),
                             pd.Series(rfu_avg,index=resi,name='Fit_AVG'),
-                            pd.Series(rfu['sd']['avg'],index=resi,name='avg_sd'),
+                            pd.Series(rfu['sd']['avg'],index=resi,name='RFUavg_sd'),
                             pd.Series(np.where(np.isnan(rfu_avg),np.nan,rfu['low']['avg']),index=resi,name='avg_low'),
                             pd.Series(np.where(np.isnan(rfu_avg),np.nan,rfu['high']['avg']),index=resi,name='avg_high'),
-                            pd.Series(pop1,index=resi,name='Frac_pop1')],axis=1)
+                            pd.Series(pop1,index=resi,name='Frac_pop1'),
+                            pd.Series(p1_sd,index=resi,name='p1_sd')],axis=1)
             all_fits[use_time] = fits
 
     if plot:
@@ -569,7 +587,9 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
         axes[0].legend(ncols=3,edgecolor='white',bbox_to_anchor=(0.5,1.2),loc='center',); #loc='top',
         
         fig.set_facecolor('white')
+
         if savepath:
+            print("in savepath")
             if svg:
                 fig.savefig(savepath,format='svg')
             else: 
@@ -656,11 +676,9 @@ def get_residues(rangetext):
     return residues
 
 def group_fits(fitsdf,groups,max_sd = 0.5,min_pop = 0.05,z='50'):
-    # create a dataframe of D-uptake values averaged over user specified ranges from dictionary groups = {'groupname':'#-#,#'}
-    # 2-state or 1-state ('Avg') Fits selected based on separation, size of errors, and minimum population requirements 
-    #cols = ['RFU_pop1','Fit_pop1','pop1_sd','RFU_pop2','Fit_pop2','pop2_sd','RFU_avg','Fit_AVG','avg_sd']
+    #cols = ['RFU_pop1','Fit_pop1','RFU1_sd','RFU_pop2','Fit_pop2','RFU2_sd','RFU_avg','Fit_AVG','RFUavg_sd']
     z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576}
-    cols = ['RFU_pop1', 'pop1_sd','RFU_pop2','pop2_sd','RFU_avg','avg_sd']
+    cols = ['RFU_pop1', 'RFU1_sd','RFU_pop2','RFU2_sd','RFU_avg','RFUavg_sd']
     groupfits_df = pd.DataFrame()
     for sample in fitsdf['sample'].unique():
         for group,v in groups.items():
@@ -670,15 +688,15 @@ def group_fits(fitsdf,groups,max_sd = 0.5,min_pop = 0.05,z='50'):
             #plot_data.loc[plot_data['exposure']==0,['RFU_avg','Fit_AVG']] = np.nan #don't draw line towards zero (looks misleading on log scale)
             use_data = plot_data.groupby(['exposure'])[cols].mean().reset_index() 
 
-            use_data['pop1_low'] = use_data['RFU_pop1'] - z_value[z]*use_data['pop1_sd']
-            use_data['pop2_low'] = use_data['RFU_pop2'] - z_value[z]*use_data['pop2_sd']
-            use_data['avg_low'] = use_data['RFU_avg'] - z_value[z]*use_data['avg_sd']
+            use_data['pop1_low'] = use_data['RFU_pop1'] - z_value[z]*use_data['RFU1_sd']
+            use_data['pop2_low'] = use_data['RFU_pop2'] - z_value[z]*use_data['RFU2_sd']
+            use_data['avg_low'] = use_data['RFU_avg'] - z_value[z]*use_data['RFUavg_sd']
 
-            use_data['pop1_high'] = use_data['RFU_pop1'] + z_value[z]*use_data['pop1_sd']
-            use_data['pop2_high'] = use_data['RFU_pop2'] + z_value[z]*use_data['pop2_sd']
-            use_data['avg_high'] = use_data['RFU_avg'] + z_value[z]*use_data['avg_sd']
+            use_data['pop1_high'] = use_data['RFU_pop1'] + z_value[z]*use_data['RFU1_sd']
+            use_data['pop2_high'] = use_data['RFU_pop2'] + z_value[z]*use_data['RFU2_sd']
+            use_data['avg_high'] = use_data['RFU_avg'] + z_value[z]*use_data['RFUavg_sd']
 
-            use_data['sep'] = (use_data['RFU_pop2'] - use_data['RFU_pop1']) - (use_data['pop2_sd'] + use_data['pop1_sd'])*z_value[z]
+            use_data['sep'] = (use_data['RFU_pop2'] - use_data['RFU_pop1']) - (use_data['RFU2_sd'] + use_data['RFU1_sd'])*z_value[z]
 
             pop1 = (use_data['RFU_pop2'] - use_data['RFU_avg'])/(use_data['RFU_pop2'] - use_data['RFU_pop1'])
             pop1 = np.where(use_data['RFU_pop1'].isna(),np.nan,pop1)
@@ -688,15 +706,25 @@ def group_fits(fitsdf,groups,max_sd = 0.5,min_pop = 0.05,z='50'):
             use_data['pop1'] = pop1
             use_data['pop2'] = 1 - pop1
 
-            rfu_p1 = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | (pop1 < min_pop), np.nan,use_data['RFU_pop1'])
-            rfu_p2 = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | (pop1 > 1 - min_pop), np.nan,use_data['RFU_pop2'])
+
+            rfu_p1 = np.where((use_data['RFU_pop1'] > 1.1) | (use_data['RFU_pop1'] < -0.1),np.nan,use_data['RFU_pop1']) #excluded data still in stdev
+            rfu_p2 = np.where((use_data['RFU_pop2'] > 1.1) | (use_data['RFU_pop2'] < -0.1),np.nan,use_data['RFU_pop2']) 
+
+            rfu_p1 = np.where((use_data['sep'] < 0) | (use_data['RFU1_sd'] > max_sd) |  (use_data['RFU2_sd'] > max_sd) | (pop1 < min_pop), np.nan,use_data['RFU_pop1'])
+            rfu_p2 = np.where((use_data['sep'] < 0) | (use_data['RFU1_sd'] > max_sd) |  (use_data['RFU2_sd'] > max_sd) | (pop1 > 1 - min_pop), np.nan,use_data['RFU_pop2'])
             rfu_p1 = np.where(np.isnan(rfu_p2),np.nan,rfu_p1) ## require both population fits to fit either
             rfu_p2 = np.where(np.isnan(rfu_p1),np.nan,rfu_p2) ## "" 
             rfu_p1 = np.where(np.isnan(pop1),np.nan,rfu_p1) ## require both population fits to fit either
             rfu_p2 = np.where(np.isnan(pop1),np.nan,rfu_p2) ## "" 
-            rfu_avg = np.where((use_data['sep'] < 0) | (use_data['pop1_sd'] > max_sd) |  (use_data['pop2_sd'] > max_sd) | 
+            rfu_avg = np.where((use_data['sep'] < 0) | (use_data['RFU1_sd'] > max_sd) |  (use_data['RFU2_sd'] > max_sd) | 
                             (pop1 < min_pop) | (pop1 > 1 - min_pop),use_data['RFU_avg'],np.nan)
             rfu_avg = np.where(np.isnan(rfu_p1) & np.isnan(rfu_p2),use_data['RFU_avg'],rfu_avg) #if missing pop1/2 fits use avg
+
+            p1_sd = ((pop1 / (use_data['RFU_pop2'] - use_data['RFU_pop1']) )**2) * use_data['RFU1_sd']**2 + \
+                    ((use_data['RFU_avg'] - use_data['RFU_pop1'])/(use_data['RFU_pop2'] - use_data['RFU_pop1'])**2) * use_data['RFU2_sd']**2 + \
+                    ((1/(use_data['RFU_pop2'] - use_data['RFU_pop1']))**2) * use_data['RFUavg_sd']**2      #partial derivatives for error propogation
+
+            use_data['p1_sd'] = np.sqrt(p1_sd)
             use_data['Fit_pop1'] = rfu_p1
             use_data['Fit_pop2'] = rfu_p2
             use_data['Fit_AVG'] = rfu_avg
@@ -706,6 +734,7 @@ def group_fits(fitsdf,groups,max_sd = 0.5,min_pop = 0.05,z='50'):
 
             groupfits_df = pd.concat([groupfits_df,use_data]).reset_index(drop=True)
     return groupfits_df
+
 
 
 def plot_resred(hdxm,states=None,times=None,seq=None,savepath=None,svg=False,plotZero=True,TD_time=1e6,UN_time=0):
@@ -953,3 +982,65 @@ def collate_pdfs(pdf_dir,project=None,samples=None,save_dir=None,addlabel=True):
     result.save(os.path.join(save_dir,'hxex_all_ndeutBoot_'+proj_str+date+'.pdf'))
 
     return
+
+
+#Functions for zoom view of plots to autoscale y-axis based on xlims 
+#https://stackoverflow.com/questions/29461608/fixing-x-axis-scale-and-autoscale-y-axis
+def autoscale(ax=None, axis='y', margin=0.1):
+    '''Autoscales the x or y axis of a given matplotlib ax object
+    to fit the margins set by manually limits of the other axis,
+    with margins in fraction of the width of the plot
+
+    Defaults to current axes object if not specified.
+    '''
+    def calculate_new_limit(fixed, dependent, limit):
+        '''Calculates the min/max of the dependent axis given 
+        a fixed axis with limits
+        '''
+        if len(fixed) > 2:
+            mask = (fixed>limit[0]) & (fixed < limit[1])
+            window = dependent[mask]
+            low, high = window.min(), window.max()
+        else:
+            low = dependent[0]
+            high = dependent[-1]
+            if low == 0.0 and high == 1.0:
+                # This is a axhline in the autoscale direction
+                low = np.inf
+                high = -np.inf
+        return low, high
+
+    def get_xy(artist):
+        '''Gets the xy coordinates of a given artist
+        '''
+        if "Collection" in str(artist):
+            x, y = artist.get_offsets().T
+        elif "Line" in str(artist):
+            x, y = artist.get_xdata(), artist.get_ydata()
+        else:
+            raise ValueError("This type of object isn't implemented yet")
+        return x, y
+
+
+    if ax is None:
+        ax = mpl.plt.gca()
+    newlow, newhigh = np.inf, -np.inf
+
+    for artist in ax.collections + ax.lines:
+        x,y = get_xy(artist)
+        if axis == 'y':
+            setlim = ax.set_ylim
+            lim = ax.get_xlim()
+            fixed, dependent = x, y
+        else:
+            setlim = ax.set_xlim
+            lim = ax.get_ylim()
+            fixed, dependent = y, x
+
+        low, high = calculate_new_limit(fixed, dependent, lim)
+        newlow = low if low < newlow else newlow
+        newhigh = high if high > newhigh else newhigh
+
+    margin = margin*(newhigh - newlow)
+
+    setlim(newlow-margin, newhigh+margin)
