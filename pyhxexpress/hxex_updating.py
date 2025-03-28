@@ -1,9 +1,12 @@
 '''
-pyHXEXPRESS v0.0.500
+pyHXEXPRESS v0.0.750
 
-Copyright 2024 Lisa M Tuttle
+Copyright 2025 Lisa M Tuttle
 
 https://github.com/tuttlelm/pyHXExpress
+
+26Mar2025
+Various additions to handle ion_type, manually specify undeut_mz
 
 22Aug2024
 add rss normalization to calc_rss()
@@ -290,6 +293,7 @@ def filter_df(metadf=pd.DataFrame(),samples=None,range=None,peptide_ranges=None,
     '''
 
     filtered = metadf.copy()
+    if any(filtered.index.duplicated()): print("Warning, dataframe has duplicate indices. reset_index() to avoid selection errors")
 
     if samples:
         try: filtered = filtered[filtered['sample'].isin(makelist(samples))]
@@ -559,6 +563,67 @@ def get_na_isotope(peptide,charge,npeaks=None,mod_dict={}):
 
     return na_isotope
 
+def choose_na(peptide,charge,mod_dict = {},deutdata=None,user_env=None):
+    '''Get the user_specified NA_envelope for Current_Isotope 
+        otherwise defaults to get_na_isotope()
+
+        If the NA_envelop column is in the metadf file:
+        1) '','normal','peptide' will use get_na_isotope()
+        2) user specified array of values (may be string if dataframe is read from csv)
+        3) 'mixed#' will fit # na_iso envelopes offset by 1 for each #
+        4) 'infer','UnDeut' will use the peakpicked UnDeut spectra (avg over reps)
+    '''
+
+    def mixed_state(na_iso,*fracs):
+        #assume offset by 1 bin for len(fracs)
+        #e.g. c-2,c-1,c .. or z,z+1,z+2
+        ysum = np.zeros(len(na_iso)+len(fracs))
+        for i in range(len(fracs)):
+            y = np.concatenate([np.zeros(i),na_iso,np.zeros(len(fracs)-i)])
+            ysum += y*fracs[i]
+        return ysum
+
+    na_iso = []
+       
+    if user_env is not None:
+        #user_env = row['NA_envelope']
+        if str.lower(str(user_env)) in ['','normal','peptide']:
+            na_iso = get_na_isotope(peptide,charge,mod_dict=mod_dict)
+        elif isinstance(user_env,np.ndarray):
+            na_iso = user_env
+        elif ('[' in str(user_env)) and (']' in str(user_env)):
+            if ',' in na_iso: #somehow have commas, most likely if input in session
+                na_iso = [float(ue) for ue in str(user_env)[1:-1].split(',')]
+            else: #more likely have spaces so can save as .csv 
+                na_iso = [float(x) for x in str(user_env)[1:-1].split()]
+            na_iso = np.array(na_iso)
+        elif str.lower(str(user_env)).startswith('mixed'):
+            n_mixed = int(user_env[5:])            
+            fit_na_iso = []
+            focal_data = deutdata.copy()[(deutdata.time==0)]  
+            for rep in focal_data.rep.unique():
+                focal_data = deutdata.copy()[(deutdata.time==0) & (deutdata.rep==rep)]           
+                #mz=np.array(focal_data.mz.copy())
+                y=np.array(focal_data.Intensity.copy())
+                npeaks = len(y)-n_mixed  #y picked peaks should already be zero filled
+                temp_na_iso = get_na_isotope(peptide,charge,mod_dict=mod_dict,npeaks=npeaks)
+                temp_na_iso = np.concatenate([temp_na_iso,np.zeros(npeaks - len(temp_na_iso))])
+                fit, covar = curve_fit( mixed_state, temp_na_iso, y, p0=(1,)*n_mixed, 
+                                       maxfev=int(1e6), bounds = ([0]*n_mixed,[np.inf]*n_mixed)   )   
+                yfit = mixed_state(temp_na_iso,*fit)   
+                fit_na_iso += [list(yfit)]
+            na_iso = list(map(lambda idx: sum(idx)/float(len(idx)),zip(*fit_na_iso)))
+        elif str.lower(str(user_env)) in ['infer','UnDeut']:    
+            focal_data = deutdata.copy()[(deutdata.time==0)]  
+            na_iso = focal_data.groupby('n_deut')['Intensity'].mean().tolist()
+        else: print("unknown NA_envelope specification")
+        
+    else: 
+        na_iso = get_na_isotope(peptide,charge,mod_dict=mod_dict)
+ 
+    return na_iso/np.sum(na_iso)   #require normalization
+
+
 def count_amides (peptide,count_sc=0.0):
     '''
     calculate the number of exchanging amides
@@ -583,22 +648,27 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
     min_pts = config.Max_Pops*3+2 #minimum number of datapoints necessary for max pop fit
     na_buffer = len(get_na_isotope(peptide,charge,mod_dict=mod_dict))//2   
     n_amides = max(count_amides(peptide,count_sc=0.0),min_pts) + na_buffer + padding #include count from Isotopic Envelope
-    undeut_mz = 0.0
+
+    if 'Hex' in mod_dict.keys():
+        n_amides += mod_dict['Hex']  
     if 'ion_type' in mod_dict.keys(): 
         ion_type = mod_dict['ion_type']
         #mod_dict.pop('ion_type')
     else: ion_type = 'M'
-    if len(peptide)>0:
-        undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge,ion_type=ion_type)
-    #print("undeut",undeut_mz)
-    #print(mod_dict) ##TROUBLESHOOTING
-    if mod_dict:
-        mod_comp = {}
-        comp_keys = set(list(mod_dict.keys())) - set(['Hex']) - set(['ion_type'])
-        if len(comp_keys) > 0:
-            for k in comp_keys:
-                mod_comp[k] = mod_dict[k]
-            undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge,ion_type=ion_type)
+    
+    if 'undeut_mz' in mod_dict.keys(): #use user specified value and don't compute anything, ignore modification 
+        undeut_mz = mod_dict['undeut_mz']
+    else:
+        undeut_mz = 0.0
+        if len(peptide)>0:
+            undeut_mz = mass.calculate_mass(sequence=peptide,show_unmodified_termini=True,charge=charge,ion_type=ion_type)
+        if mod_dict:
+            mod_comp = {}          
+            comp_keys = set(list(mod_dict.keys())) - set(['Hex']) - set(['ion_type']) - set(['undeut_mz'])
+            if len(comp_keys) > 0:
+                for k in comp_keys:
+                    mod_comp[k] = mod_dict[k]
+                undeut_mz += mass.calculate_mass(composition=mod_comp,charge=charge,ion_type=ion_type)
 
     #print("undeut_mod",undeut_mz)
     #n_deut = np.arange(n_amides+1) #ExMS instead
@@ -780,10 +850,10 @@ def binom_isotope(bins, n,p):
     binomial function using the Natural Abundance isotopic envelope
     '''
     bs = binom(bins,n,p)
-    newbs=np.zeros(len(bs) + len(Current_Isotope)+1)
+    newbs=np.zeros(len(bs) + len(config.Current_Isotope)+1)
     for i in range(len(bs)):
-        for j in range(len(Current_Isotope)):     
-            newbs[i+j] += bs[i]*Current_Isotope[j]  
+        for j in range(len(config.Current_Isotope)):     
+            newbs[i+j] += bs[i]*config.Current_Isotope[j]  
     return newbs[0:bins+1]
 
 def n_binomials( bins, *params ): #allfracsversion
@@ -1004,15 +1074,16 @@ def fit_bootstrap(p0_boot, bounds, datax, datay, sigma_res=None,yerr_systematic=
 
 def get_TDenv(datafits,mod_dict={}):
    '''
+   haven't updated this to use choose_na()
    calculate the TD envelope to use as an X_feature in the ML prediction
    '''
-   global Current_Isotope
+   #global Current_Isotope
    df = datafits.copy()
    test_set = df[['peptide','max_namides']].drop_duplicates()
    test_peptides = dict(zip(test_set['peptide'],test_set['max_namides'])) 
    for peptide,namides in test_peptides.items():
       charge = 1
-      Current_Isotope= get_na_isotope(peptide,charge,npeaks=None,mod_dict=mod_dict)
+      config.Current_Isotope= get_na_isotope(peptide,charge,npeaks=None,mod_dict=mod_dict) 
       TD_max_spectrum = n_binom_isotope(namides+5,0.0, namides, config.Dfrac, 1.0) #use Dfrac for expected TDenv
       TD_spec = pd.DataFrame(zip(np.arange(len(TD_max_spectrum)),TD_max_spectrum),columns=['mz','Intensity'])
       [left,right] = get_mz_env(0.1*max(TD_max_spectrum),TD_spec,colname='Intensity')
@@ -1051,7 +1122,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
     '''
     
     GP = config.Generate_Plots
-    global n_fitfunc, fitfunc, mz, Current_Isotope, now, date, deutdata, rawdata, reportdf
+    global n_fitfunc, fitfunc, mz, now, date, deutdata, rawdata, reportdf #Current_Isotope
     global deutdata_all, rawdata_all, solution, data_fits, data_fit, config_df, fitparams_all
 
     def MinimizeStopper(xk=None,convergence=None):
@@ -1132,10 +1203,12 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         mod_dic = {}
         if 'modification' in row.keys():
             mod = row['modification']
-            mod = mod.split() #'H:1 Hex:1 ion_type:c'
+            mod = mod.split() #'H:1 Hex:1 ion_type:c undeut_mz'
             mod_dic = {x.split(':')[0]:(x.split(':')[1]) for x in mod}
             for k,v in mod_dic.items():
-                if k != 'ion_type':
+                if k == 'undeut_mz':
+                    mod_dic[k] = float(v)                    
+                elif k != 'ion_type':
                     mod_dic[k] = int(v)
 
         hdx_file = row['file']
@@ -1225,7 +1298,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         time_indexes = sorted(set(deutdata.time_idx)) 
         print("Found time points (s): "+', '.join(map(str, time_points)))
         max_time_reps = int(sorted(set(deutdata.rep))[-1])
-        Current_Isotope= get_na_isotope(peptide,charge,mod_dict=mod_dic)
+        #config.Current_Isotope= get_na_isotope(peptide,charge,mod_dict=mod_dic)
+        if 'NA_envelope' in row.keys():
+            user_env = row['NA_envelope']
+        else: user_env = None
+        config.Current_Isotope= choose_na(peptide,charge,mod_dict=mod_dic,deutdata=deutdata,user_env=user_env)
 
         if GP:
             dax_legend_elements = []
@@ -1263,6 +1340,12 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         try: namide_scale = config.Nex_Max_Scale
         except: namide_scale = 1.2 #instead of using exchangable sidechain fraction to set max_n_amides, just use scale factor
         max_n_amides = count_amides(peptide,count_sc=0.0)*namide_scale #### Might be better way to set this
+
+        if (max_n_amides < 1): 
+            print(f"No exchangable amides found\n")
+            # probably better place to exit, but know it works for next issue
+            continue # exit the for n_curves loop  
+        
         undeut_mz = 0.0
         if 'ion_type' in mod_dic.keys(): 
             ion_type = mod_dic['ion_type']
@@ -1275,7 +1358,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             if 'Hex' in mod_dic.keys():
                 n_amides += mod_dic['Hex']
                 max_n_amides += mod_dic['Hex']*namide_scale
-            comp_keys = set(list(mod_dic.keys())) - set(['Hex']) - set(['ion_type'])
+            comp_keys = set(list(mod_dic.keys())) - set(['Hex']) - set(['ion_type']) - set(['undeut_mz'])
             if len(comp_keys) > 0:
                 for k in comp_keys:
                     mod_comp[k] = mod_dic[k]
@@ -1324,7 +1407,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 if config.Binomial_dCorr: 
                     #use the binomial center for the d_corr calc, not the centroid which may capture impurity peaks
                     initial_estimate, bounds = init_params(1,max_n_amides,seed=None)#config.Random_Seed-1)
-                    p0_TD = (0, max_n_amides - 1, 0.8, 1.0 )
+                    p0_TD = (0, max(max_n_amides - 1,0), 0.8, 1.0 ) #
                     try:
                         fit, covar = curve_fit( n_fitfunc, len(y)-1, y/np.sum(y), p0=p0_TD, maxfev=int(1e6), 
                                                 bounds = bounds   )
@@ -1349,10 +1432,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
             dax_log = False
             Noise = config.Y_ERR/100.0 * deutdata.Intensity.max()
             #use pred undeut mz if no UN/TD data
-            n_mz = np.arange(len(Current_Isotope)+1)
+            n_mz = np.arange(len(config.Current_Isotope)+1)
             mz = undeut_mz + (n_mz*1.006227)/charge
 
-            centroidUD = sum(Current_Isotope*mz[0:len(Current_Isotope)])/sum(Current_Isotope)
+            centroidUD = sum(config.Current_Isotope*mz[0:len(config.Current_Isotope)])/sum(config.Current_Isotope)
             centroidTD = centroidUD + n_amides*config.Dfrac/charge
             d_corr = (charge*(centroidTD - centroidUD)/n_amides) # = config.Dfrac #units mass per amide
 
@@ -1453,7 +1536,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 for n_curves in range( low_n, high_n+1 ):  #[scaler] [n *n_curves] [mu *n_curves] [frac * (n_curves )] )]
                     print("Time point:",timelabel,"Rep:",j,"Npops:",n_curves,"          ",end='\r',flush=True) 
                     
-                    initial_estimate, bounds = init_params(n_curves,max_n_amides,seed=config.Random_Seed)
+                    initial_estimate, bounds = init_params(n_curves,max_n_amides,seed=config.Random_Seed)                 
                     if (len(initial_estimate) > n_bins): 
                         print(f"attempting to fit more parameters than data points: time {timelabel} rep {j} N={n_curves} curves")
                         #should be able to exit at this point, haven't updated last fit parameters including p_err
@@ -1908,9 +1991,10 @@ def get_data(metadf):
             mod = mod.split() #'H:1 Hex:1 ion_type:c'
             mod_dic = {x.split(':')[0]:(x.split(':')[1]) for x in mod}
             for k,v in mod_dic.items():
-                if k != 'ion_type':
+                if k == 'undeut_mz':
+                    mod_dic[k] = float(v)                    
+                elif k != 'ion_type':
                     mod_dic[k] = int(v)
-
 
         hdx_file = row['file']
         sample = row['sample']
@@ -1991,13 +2075,13 @@ def export_to_hxexpress(rawdata,metadf,save_xls = False, removeUNTDreps = False)
     return hxcols
 
 def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.DataFrame(),norm=False,residual=False,
-                  ax=None,rax=None,plt_kwargs={},rax_kwargs={},simfit=False,saveas=None,return_fit_data=False):
+                  ax=None,rax=None,plt_kwargs={},rax_kwargs={},simfit=False,saveas=None,return_fit_data=False,user_env=None,mod_dict={}):
     '''
     intended to plot a single spectrum: raw data, picked peaks, and fits
     '''
     n_fitfunc = n_binom_isotope # n_binomials #
     fitfunc = binom_isotope # binom #
-    global Current_Isotope
+    #global Current_Isotope
 
     if ax is None:
         fig = plt.figure()
@@ -2050,7 +2134,8 @@ def plot_spectrum(deutdata=pd.DataFrame(),rawdata=pd.DataFrame(),fit_params=pd.D
 
         if not focal_fit.empty:
             fits = focal_fit.copy()
-            Current_Isotope = get_na_isotope(peptide,z,npeaks=None,mod_dict={})
+            #config.Current_Isotope = get_na_isotope(peptide,z,npeaks=None,mod_dict={})
+            config.Current_Isotope = choose_na(peptide,z,npeaks=None,mod_dict=mod_dict,deutdata=deutdata,user_env=user_env)
             nboot_list = list(fits['nboot'].unique())
             if min(nboot_list) > 0:
                 best_n_curves = fits[fits['nboot']==1]['ncurves'].values[0]
