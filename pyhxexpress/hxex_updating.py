@@ -1260,7 +1260,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         # update with user values ... 
         if not user_deutdata.empty:
-            userdeut = filter_df(user_deutdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=False)
+            userdeut = filter_df(user_deutdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=True)
             if not userdeut.empty:  # deutdata.loc[userdeut.index] = userdeut # 
                 if update_deutdata == True:
                     update_deut_list = zip(*[userdeut[col] for col in ['data_id','sample','peptide_range','time','rep','charge']])
@@ -1272,7 +1272,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                     deutdata = pd.concat([deutdata.drop(index=deut_filter_idx),userdeut],ignore_index=True)
                 else: deutdata = userdeut
         if not user_rawdata.empty:
-            userraw = filter_df(user_rawdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=False)
+            userraw = filter_df(user_rawdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=True)
             if not userraw.empty:  # deutdata.loc[userdeut.index] = userdeut # 
                 if update_deutdata == True:
                     update_raw_list = zip(*[userraw[col] for col in ['data_id','sample','peptide_range','time','rep','charge']])
@@ -1346,8 +1346,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         if (max_n_amides < 1): 
             print(f"No exchangable amides found\n")
-            # probably better place to exit, but know it works for next issue
-            continue # exit the for n_curves loop  
+            continue # go to the next metadf row 
         
         undeut_mz = 0.0
         if 'ion_type' in mod_dic.keys(): 
