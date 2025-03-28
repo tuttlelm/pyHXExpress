@@ -706,7 +706,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         if (len(focal_data) > 0):
             if len(focal_data) < 10: #assumes stick data or sparse data
                 max_Int = focal_data['Intensity'].max()
-            elif (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())):
+            elif (focal_data.index[0] not in (focal_data.index.min(),focal_data.index.max())): #avoid shoulders
                 max_Int = focal_data['Intensity'].max()
             else: max_Int = 0.0
             focal_data.reset_index(drop=True)
@@ -1298,11 +1298,11 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         time_indexes = sorted(set(deutdata.time_idx)) 
         print("Found time points (s): "+', '.join(map(str, time_points)))
         max_time_reps = int(sorted(set(deutdata.rep))[-1])
-        #config.Current_Isotope= get_na_isotope(peptide,charge,mod_dict=mod_dic)
+        #config.Current_Isotope = get_na_isotope(peptide,charge,mod_dict=mod_dic)
         if 'NA_envelope' in row.keys():
             user_env = row['NA_envelope']
         else: user_env = None
-        config.Current_Isotope= choose_na(peptide,charge,mod_dict=mod_dic,deutdata=deutdata,user_env=user_env)
+        config.Current_Isotope = choose_na(peptide,charge,mod_dict=mod_dic,deutdata=deutdata,user_env=user_env)
 
         if GP:
             dax_legend_elements = []
@@ -1773,7 +1773,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 data_fit.loc[0,'max_namides']=n_amides
 
                 if GP:
-                    ax_max_y = max(y_plot) #find max value on plot
+                    ax_max_y = max(max(y_plot),max(fit_y)) + Noise/ynorm_factor*scale_y #find max value on plot
                     
                     
                     env_label = "Env res: "+format(env_resolution,'0.2f')#+"/"+format(env_dof,'0.2f')
