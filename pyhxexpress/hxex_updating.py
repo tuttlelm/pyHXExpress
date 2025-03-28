@@ -620,6 +620,9 @@ def choose_na(peptide,charge,mod_dict = {},deutdata=None,user_env=None):
         
     else: 
         na_iso = get_na_isotope(peptide,charge,mod_dict=mod_dict)
+    if np.sum(na_iso) == 0:
+        print("no data found for fit Isotopic envelope, using default")
+        na_iso = get_na_isotope(peptide,charge,mod_dict=mod_dict)
  
     return na_iso/np.sum(na_iso)   #require normalization
 
