@@ -41,7 +41,7 @@ ion_frag_dict = {
     }
 
 
-def get_fragments(metadf,frags=None):
+def get_fragments(metadf,user_frags=None):
     '''
     if frags not specified, must be column named 'frags' in the (parent) metadf to generate fragments for each entry
     specify as 'ion_type:fragments:charges' where :charges is optional
@@ -70,18 +70,19 @@ def get_fragments(metadf,frags=None):
         else: new_mods = ''
         peptide = row.peptide
 
-        if frags is None:
+        if user_frags is None:
             if 'frags' in metadf.columns:
                 frags = row.frags.split()               
             else: 
                 print("must specify fragments to generate")
-        else: frags = frags.split()
+        else: 
+            frags = user_frags.split()
 
         for fx in frags:
             ionx = fx.split(':')[0]
             truncx = fx.split(':')[1].split(',') if len(fx.split(':'))>1 else ['ALL']
             chargex = (fx.split(':')[2].split(',')) if len(fx.split(':'))==3 else []
-            #print(ionx,truncx,chargex)
+            print(ionx,truncx,chargex)
             if ionx in ion_frag_dict.keys():
                 trunc_type = ion_frag_dict[ionx]
             else:
@@ -114,7 +115,7 @@ def get_fragments(metadf,frags=None):
                 if truncs == 'ALL':
                     min_trunc = 0 #
                     truncs = np.arange(min_trunc,len(row.peptide)-1)+1
-                #print(truncs)
+                print(truncs)
                 for trunc in truncs:
                     frag_df = pd.DataFrame()
                     if trunc > len(peptide): 
