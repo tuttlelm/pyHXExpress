@@ -82,7 +82,7 @@ def get_fragments(metadf,user_frags=None):
             ionx = fx.split(':')[0]
             truncx = fx.split(':')[1].split(',') if len(fx.split(':'))>1 else ['ALL']
             chargex = (fx.split(':')[2].split(',')) if len(fx.split(':'))==3 else []
-            print(ionx,truncx,chargex)
+            #print(ionx,truncx,chargex)
             if ionx in ion_frag_dict.keys():
                 trunc_type = ion_frag_dict[ionx]
             else:
@@ -115,7 +115,7 @@ def get_fragments(metadf,user_frags=None):
                 if truncs == 'ALL':
                     min_trunc = 0 #
                     truncs = np.arange(min_trunc,len(row.peptide)-1)+1
-                print(truncs)
+                #print(truncs)
                 for trunc in truncs:
                     frag_df = pd.DataFrame()
                     if trunc > len(peptide): 
