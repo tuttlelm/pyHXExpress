@@ -10,7 +10,7 @@ This is a python adaptation of [HX-Express](https://www.hxms.com/HXExpress/) [[2
 
 ## How to use this tool
 
-You'll need python 3.8+ and Jupyter Notebook. You can use pip install to install, which should install all dependencies. See [00_Installation.md](Documentation/00_Installation.md) for more details and alternatives to this approach.You may want to grab the latest pyHXExpress/*.py files to your installed location to have the most up-to-date features. 
+You'll need python 3.8+ and Jupyter Notebook. You can use pip install to install, which should install all dependencies. See [00_Installation.md](Documentation/00_Installation.md) for more details and alternatives to this approach.You may want to grab the latest pyhxexpress/*.py files to your installed location to have the most up-to-date features. 
 
 
     pip install pyhxexpress
