@@ -760,7 +760,7 @@ def peak_picker(data, peptide,charge,resolution=50.0,count_sc=0.0,mod_dict={}):
         peaks['env_symm'] = env_symmetry_adj
         #peaks['skewness'] = skew(y_norm,bias=False)
     except:
-        print("")
+        pass
     peaks['max_namides']=count_amides(peptide,count_sc=0.0)
 
     return peaks #pd.concat(peaks,ignore_index=True)
@@ -770,6 +770,9 @@ def get_mz_env(value, df, colname='Intensity',pts=False):
     get mz values at value = envelope_height (e.g. 0.1*maxIntensity)
     to define the envelope width, for assessment of expected polymodal fits
     '''
+    if value == 0:
+        if pts: return np.array([np.nan, np.nan]), np.nan
+        else: return np.array([np.nan, np.nan])
     df = df.copy().reset_index()
     boolenv = df[colname].gt(value)
     #envpts = boolenv.value_counts()[True] # number of points in envelope
@@ -1239,21 +1242,25 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 deutdata, rawdata, solution = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw)
             elif (config.Keep_Raw): 
                 if (user_deutdata.empty) or (update_deutdata == True): #only peakpick if necessary
-                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)                   
+                    deutdata, rawdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)     
+                    # TODO need to add option if user_rawdata specified to just peak_pick user raw              
             else: 
                 if (user_deutdata.empty) or (update_deutdata == True):
                     deutdata = read_hexpress_data(hdx_file,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
+                    # TODO need to add option if user_rawdata specified to just peak_pick user raw
         else: # Data_type == 2, already checked that it is 1 or 2            
             if config.Keep_Raw:
                 if (user_deutdata.empty) or (update_deutdata == True):
                     spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
                     csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata, rawdata = read_specexport_data(csv_files,spec_path,row,keep_raw=config.Keep_Raw,mod_dict=mod_dic)
+                    # TODO need to add option if user_rawdata specified to just peak_pick user raw
             else: 
                 if (user_deutdata.empty) or (update_deutdata == True):
                     spec_path = os.path.join(config.Data_DIR,row['sample'],row['file'])
                     csv_files = [ f for f in os.listdir(spec_path) if f[-5:]==str(int(charge))+'.csv'  ]
                     deutdata = read_specexport_data(csv_files,spec_path,row,keep_raw=False,mod=mod_dic)
+                    # TODO need to add option if user_rawdata specified to just peak_pick user raw
         
         # deutdata['data_id'] = index  #should be in read_ functions
         # rawdata['data_id'] = index
@@ -1467,7 +1474,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 uppermz = deutdata.mz[deutdata.rep==j].max()
             
                 focal_data = deutdata.copy()[(deutdata.time_idx == ti) & (deutdata.rep == j)]
-                if focal_data.empty: continue
+                if (focal_data.empty) | (focal_data.Intensity.sum() == 0): continue
                 if not rawdata.empty: 
                     if config.Keep_Raw: focal_raw = rawdata.copy()[(rawdata.time_idx == ti) & (rawdata.rep == j)]
                 else: focal_raw = focal_data.copy()
@@ -1563,7 +1570,7 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                             #bestifit = 1
                             #print("trying fit 1 of ",config.BestFit_of_X," fits:",initial_estimate,rss)
                             for ifits in range(2,config.BestFit_of_X+1):
-                                if config.Random_Seed: seed = config.Random_Seed+ifits
+                                if config.Random_Seed: seed = config.Random_Seed+ifits*29
                                 else: seed = None
                                 initial_estimate, bounds = init_params(n_curves,max_n_amides,seed=seed)
                                 
@@ -1844,7 +1851,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                                             +'\nm/z = '+format(kindcent,'.2f'))
                         ax[i,j-1].plot( mz, fit_yk, color = 'black', linestyle='solid',linewidth=1.,label=plot_label)
                         ax[i,j-1].set(xlim=(lowermz-3/charge,uppermz+9/charge)) #gives rightside space for legend
-                        ax[i,j-1].set(ylim=(-ax_max_y * 0.1, ax_max_y*1.1))
+                        try: ax[i,j-1].set(ylim=(-ax_max_y * 0.1, ax_max_y*1.1))
+                        except: pass #issue with limits
 
                 if GP:
                     ax[i,j-1].set_title(label=str(sample)+': '+peptide_range+" "+str(shortpeptide)+" z="+str(int(charge)),loc='center')
