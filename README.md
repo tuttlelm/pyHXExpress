@@ -1,7 +1,7 @@
 # [pyHXExpress](https://github.com/tuttlelm/pyHXExpress)
 
 This work has recently been published on BioRxiv [[1]](#1) https://www.biorxiv.org/content/10.1101/2025.03.13.643099v1 <br>
-Please cite accordingly if you use this repository. See the 'paper' branch for the exact versions of scripts used and all outputs. 
+Please cite accordingly if you use this repository. See the ['paper' branch](https://github.com/tuttlelm/pyHXExpress/tree/paper) for the exact versions of scripts used and all outputs. 
 
 <br><br>
 *** This is under active development. Please report any comments, issues, requests *** 
