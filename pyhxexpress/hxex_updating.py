@@ -555,6 +555,7 @@ def get_na_isotope(peptide,charge,npeaks=None,mod_dict={}):
         pepcomp['H'] = pepcomp['H'] - pepcomp['Hex']
     if 'Hex' in pepcomp.keys(): pepcomp.pop('Hex')
     if 'ion_type' in pepcomp.keys(): pepcomp.pop('ion_type')
+    if 'undeut_mz' in pepcomp.keys(): pepcomp.pop('undeut_mz')
 
     theoretical_isotopic_cluster = isotopic_variants(pepcomp, npeaks=npeaks, charge=charge)
 
@@ -1307,6 +1308,10 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
         n_time_points = len(time_points)
         time_indexes = sorted(set(deutdata.time_idx)) 
         print("Found time points (s): "+', '.join(map(str, time_points)))
+        if 'rep' not in deutdata.columns:
+            deutdata['rep'] = 1
+        if 'rep' not in rawdata.columns:
+            rawdata['rep'] = 1
         max_time_reps = int(sorted(set(deutdata.rep))[-1])
         #config.Current_Isotope = get_na_isotope(peptide,charge,mod_dict=mod_dic)
         if 'NA_envelope' in row.keys():
