@@ -6,6 +6,7 @@ https://github.com/levitsky/pyteomics/blob/master/pyteomics/mass/mass.py
 '''
 
 from pyteomics import parser
+from pyteomics import mass
 import pandas as pd
 import numpy as np
 
@@ -99,7 +100,7 @@ def get_fragments(metadf,user_frags=None):
             pep_end = -1
         else: 
             pep_cterm = ''
-            pep_end = 0
+            pep_end = len(sequence)+1
 
         peptide = ''.join(pep_parts[pep_start:pep_end]) #ditch C/N modifications for truncations
         # print("sequence:",sequence)
@@ -134,6 +135,8 @@ def get_fragments(metadf,user_frags=None):
             if trunc_type == "C-term":
                 pep_n = ''
             else: pep_n = pep_nterm
+            if trunc_type == "parent":
+                truncx = [row.end_seq - row.start_seq + 1]
 
             for charge in chargex:
                 for trunc in truncx:
@@ -144,7 +147,7 @@ def get_fragments(metadf,user_frags=None):
                     
                     sidx,eidx = get_pepfrag(peptide,trunc_type,trunc)
                     pep = peptide[sidx:eidx]
-                    
+
                     frag_df = row.copy()
                     frag_df['parent'] = row['sample']
                     frag_df['sample'] = row['sample'] + '_' + ionx+'_'+str(trunc)+'_z'+str(charge)
@@ -156,7 +159,7 @@ def get_fragments(metadf,user_frags=None):
                     frag_df['charge'] = charge
                     frag_df['modification'] = new_mods+'ion_type:'+ionx
                     frag_df['frags']=ionx+':'+str(trunc)
-                    frag_df['parent_peptide']=peptide
+                    frag_df['parent_peptide']=sequence
                     frag_df['parent_charge']=row.charge
                     frag_df['parent_id']=index
                     
