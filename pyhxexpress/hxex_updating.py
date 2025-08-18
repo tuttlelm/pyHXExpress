@@ -1268,7 +1268,9 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
 
         # update with user values ... 
         if not user_deutdata.empty:
+
             userdeut = filter_df(user_deutdata,data_ids=index,samples=sample,peptides=peptide,charge=charge,quiet=True)
+
             if not userdeut.empty:  # deutdata.loc[userdeut.index] = userdeut # 
                 if update_deutdata == True:
                     update_deut_list = zip(*[userdeut[col] for col in ['data_id','sample','peptide_range','time','rep','charge']])
@@ -1885,6 +1887,8 @@ def run_hdx_fits(metadf,user_deutdata=pd.DataFrame(),user_rawdata=pd.DataFrame()
                 if any(tp in polymodal for tp in [0,config.FullDeut_Time]):
                     reportdf.loc[index,'comment'] = "Warning: UN/TD polymodal"
                 reportdf.loc[index,'dataset_run'] = "Yes"
+                if 'NA_envelope' in reportdf.columns:
+                    reportdf.loc[index,'NA_envelope_calc'] = '['+(' ').join(map(str,config.Current_Isotope))+']'
                 save_metadf(reportdf,filename="metadf_asrun_"+date+".csv")
                 try:
                     data_fit.to_csv(data_output_file_inprogress,mode='a',index_label='Index',header=False) 

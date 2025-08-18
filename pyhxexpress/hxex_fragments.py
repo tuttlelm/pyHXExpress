@@ -43,7 +43,7 @@ ion_frag_dict = {
     }
 
 
-def get_fragments(metadf,user_frags=None):
+def get_fragments(metadf,user_frags=None, limit_charge=True):
     '''
     if frags not specified, must be column named 'frags' in the (parent) metadf to generate fragments for each entry
     specify as 'ion_type:fragments:charges' where :charges is optional
@@ -118,9 +118,7 @@ def get_fragments(metadf,user_frags=None):
             ionx = fx.split(':')[0]
             truncs = fx.split(':')[1].split(',') if len(fx.split(':'))>1 else ['ALL']
             charges = (fx.split(':')[2].split(',')) if len(fx.split(':'))==3 else ['ALL']
-            truncx = expand_range(truncs,row.start_seq,row.end_seq)
-            max_charge = row.charge # min(len(peptide)//2,row.charge) #leave it naive for now
-            chargex = expand_range(charges,1,max_charge)
+            truncx = expand_range(truncs,row.start_seq,row.end_seq)          
 
             if ionx in ion_frag_dict.keys():
                 trunc_type = ion_frag_dict[ionx]
@@ -137,6 +135,13 @@ def get_fragments(metadf,user_frags=None):
             else: pep_n = pep_nterm
             if trunc_type == "parent":
                 truncx = [row.end_seq - row.start_seq + 1]
+                max_charge = row.charge #     
+            else:
+                if limit_charge:
+                    max_charge = row.charge-1 #parent charge - 1
+                else:
+                    max_charge = row.charge #                  
+            chargex = expand_range(charges,1,max_charge)
 
             for charge in chargex:
                 for trunc in truncx:

@@ -1,4 +1,7 @@
+import os
 from collections import defaultdict
+import numpy as np
+import pandas as pd
 
 # Combine the batch outputs into single dataframe files for metadf, datafits, and fitparams
 def combine_batch_data(dirs):
@@ -216,9 +219,6 @@ def hdexa_to_pyhdx(data,d_percentage=0.85,protein='protein',dummyTD = '1e6s', ke
     new_columns = [col for col in pyhdx_cols if col in data.columns] + [col for col in data.columns if col not in pyhdx_cols]
     return data[new_columns]
 
-import proplot as pplt
-import colorcet as cc
-import matplotlib as mpl
 
 def prepare_kwargs(fit_result):
     """Prepare plot kwargs for fit result"""
@@ -233,6 +233,7 @@ def prepare_kwargs(fit_result):
 ## Tweaked from pyhdx.plot.single_linear_bar to leave levels in kwargs 
 def plot_bar(ax, x, z, cmap, norm, height=1,**kwargs):
     """makes a linear bar plot on supplied axis with values z and corresponding x values x"""
+    import proplot as pplt
 
     if isinstance(z, pd.Series):
         z = z.to_numpy()
@@ -255,10 +256,13 @@ def plot_bar(ax, x, z, cmap, norm, height=1,**kwargs):
 
     return collection
 
-from pyhdx.plot import peptide_coverage
+
 
 def plot_coverage(hdxm,states=None,times=None,savepath=None,svg=False,peprange=None,color_field='rfu'):
     ## Coverage plots
+    from pyhdx.plot import peptide_coverage
+    import proplot as pplt
+
     use_hdxm = hdxm.copy()
     if states is None:
         states = list(use_hdxm.keys())
@@ -286,6 +290,8 @@ def plot_coverage(hdxm,states=None,times=None,savepath=None,svg=False,peprange=N
 
 
 def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
+    import matplotlib as mpl
+
     new_cmap = mpl.colors.LinearSegmentedColormap.from_list(
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)))
@@ -293,6 +299,11 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
 
 def plot_rfu_residue(hdxm,states=None,times=None,seq=None,colors=None,savepath=None,svg=False,legendcols=5,plotZero=True,TD_time=1e6,UN_time=0):
     # Prolines: 7,12,15,19,38,45,50,51,57,85,124,129,147,154,159,166,172,
+
+    import proplot as pplt
+    import matplotlib as mpl
+    import colorcet as cc
+
     if colors is None:
         colors="#000000 #66C2A5 #56B4E9 #7570B3 #E7298A".split()
     if states is None:
@@ -433,6 +444,9 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
              this is a little hand wavey since errors aren't likely guassian
     max_sd:  falls back to 'avg' fit if either pop1 or pop2 errors are larger than this cutoff 
     '''
+
+    import proplot as pplt
+
     z_value ={'50':0.674,'68':1.0,'sd':1.0,'80':1.282,'90':1.645,'95':1.96,'98':2.326,'99':2.576} #confidence intervals multiplier 
     all_fits = defaultdict(dict)
 
@@ -589,7 +603,7 @@ def choose_fits(hdxm,state,times=None,avg_proj = 'fixed1pop',fixed2_proj = 'fixe
         fig.set_facecolor('white')
 
         if savepath:
-            print("in savepath")
+            #print("in savepath")
             if svg:
                 fig.savefig(savepath,format='svg')
             else: 
@@ -603,6 +617,9 @@ def plot_comparison(fits,states=None,times=None,colors=None,savepath=None,svg=Fa
     ''' 
     fits is a defaultdict as output from choose_fits(), fits[state][time]
     '''
+
+    import proplot as pplt
+
     if states is None:
         states = [k for k in fits.keys()]
     if times is None:
@@ -639,7 +656,7 @@ def plot_comparison(fits,states=None,times=None,colors=None,savepath=None,svg=Fa
         axes[2*k].format(ylabel="fractional D-uptake",xlabel="",xtickrange=(-1,-1))
         #axes[2*k].format(xlabel='Residue')
         handles,labels=axes[2*k].get_legend_handles_labels()
-        klabel = [kk*2 for kk in np.arange(len([k for k in fits.keys()]))]
+        klabel = [kk*2 for kk in np.arange(len([k for k in states]))]
         # axes.legend(handles=[handles[i] for i in klabel],ncols=3, bbox_to_anchor=(1.0,1.2),loc='upper right', #units fraction of figure
         #             frame=True,edgecolor='white',facecolor='white',framealpha=0.8); #loc='top',    loc=(0,1)
         axes[2*k].legend(handles=[handles[j] for j in klabel],ncols=len(states), bbox_to_anchor=(0.5,1.1),loc='center', #units fraction of figure
@@ -742,6 +759,10 @@ def plot_resred(hdxm,states=None,times=None,seq=None,savepath=None,svg=False,plo
     Just plot the redundancy and resolution color bars for the specified times and states
         (note that all times should have the same red/res if coming out of the hdxm without further peptide filtering)
     '''
+
+    import proplot as pplt
+    import matplotlib as mpl
+    import colorcet as cc
 
     if states is None:
         states = list(hdxm.keys())
@@ -867,12 +888,7 @@ def filter_range(hdxm,peprange,startcol='start',endcol='end',nterm_exch=2):
     return df
 
 
-#!pip install PyMuPDF
-import pandas as pd
-import numpy as np
-import fitz
-import os
-from datetime import datetime
+
 
 def collate_pdfs(pdf_dir,project=None,samples=None,save_dir=None,addlabel=True):
     '''
@@ -884,6 +900,14 @@ def collate_pdfs(pdf_dir,project=None,samples=None,save_dir=None,addlabel=True):
             #print(pdf_dir)
             collate_pdfs(pdf_dir,project='HSPB5_'+sample+'_'+proj,save_dir=batch_dir[proj])
     '''
+
+    #!pip install PyMuPDF
+    import pandas as pd
+    import numpy as np
+    import fitz
+    import os
+    from datetime import datetime
+
     now = datetime.now()
     date = now.strftime("%d%b%Y")
 
@@ -993,6 +1017,9 @@ def autoscale(ax=None, axis='y', margin=0.1):
 
     Defaults to current axes object if not specified.
     '''
+
+    import matplotlib as mpl
+
     def calculate_new_limit(fixed, dependent, limit):
         '''Calculates the min/max of the dependent axis given 
         a fixed axis with limits
