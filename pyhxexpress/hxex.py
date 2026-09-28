@@ -205,7 +205,7 @@ def get_metadf(quiet=False):
                 #metadf = pd.DataFrame() #dataframe to hold filenames and sample/peptide/charge info
                 for f in hx_files:
                     meta = get_hxexpress_meta(f)
-                    metadf = metadf.append(meta,ignore_index=True)
+                    metadf = metadf.concat([metadf,pd.DataFrame([meta])],ignore_index=True)
 
         elif config.Data_Type == 2:
             fasta_files = [ f for f in os.listdir(config.Data_DIR) if f[-6:]=='.fasta'  ]
