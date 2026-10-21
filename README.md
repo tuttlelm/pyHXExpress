@@ -1,3 +1,6 @@
+October 2026. News! I am actively developing 'hxex' the successor to pyHXExpress over at https://github.com/tuttlelm/hxex
+
+
 # [pyHXExpress](https://github.com/tuttlelm/pyHXExpress)
 
 This work has recently been published on BioRxiv [[1]](#1) https://www.biorxiv.org/content/10.1101/2025.03.13.643099v1 <br>
